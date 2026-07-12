@@ -1,0 +1,169 @@
+.contact-page { padding-top: 80px; }
+
+.contact-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-section);
+  padding: 72px 0 80px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contact-hero-inner {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 56px;
+  align-items: start;
+}
+
+.contact-info { display: flex; flex-direction: column; gap: 18px; margin-top: 28px; }
+
+.contact-info-item { display: flex; align-items: flex-start; gap: 14px; }
+
+.contact-info-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--radius-sm);
+  background: rgba(241,90,36,0.1);
+  color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.contact-info-label  { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
+.contact-info-value  { font-size: 15px; color: var(--text-primary); text-decoration: none; transition: var(--transition); }
+a.contact-info-value:hover { color: var(--primary); }
+
+.contact-hackathon {
+  margin-top: 28px;
+  background: rgba(246,166,35,0.07);
+  border: 1px solid rgba(246,166,35,0.2);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+.hackathon-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--yellow); margin-bottom: 6px;
+}
+.contact-hackathon p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* Form */
+.contact-form-wrap { position: sticky; top: 96px; }
+
+.contact-form {
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 32px;
+}
+.form-title    { font-size: 22px; font-weight: 800; margin-bottom: 2px; color: var(--text-primary); }
+.form-subtitle { font-size: 14px; color: var(--text-secondary); }
+
+.form-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+
+.form-group label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+.form-group input,
+.form-group textarea {
+  background: var(--bg-section);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  transition: var(--transition);
+  width: 100%;
+  resize: none;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(241,90,36,0.1);
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder { color: var(--text-muted); }
+
+.role-selector { display: flex; gap: 8px; flex-wrap: wrap; }
+.role-btn {
+  padding: 8px 16px;
+  background: var(--bg-section);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer; transition: var(--transition);
+  font-family: 'Inter', sans-serif;
+}
+.role-btn:hover { border-color: var(--primary); color: var(--text-primary); }
+.role-btn-active {
+  border-color: var(--primary) !important;
+  background: rgba(241,90,36,0.08) !important;
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+
+.form-submit { width: 100%; justify-content: center; padding: 14px; font-size: 15px; }
+.form-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.loading-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rotate 0.8s linear infinite;
+}
+.form-disclaimer { text-align: center; font-size: 12px; color: var(--text-muted); }
+
+/* Success */
+.success-card {
+  text-align: center; padding: 44px 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  animation: scaleIn 0.35s ease;
+  border-color: rgba(0,184,148,0.3) !important;
+  background: rgba(0,184,148,0.02) !important;
+}
+.success-icon {
+  width: 76px; height: 76px; border-radius: 50%;
+  background: rgba(0,184,148,0.1);
+  display: flex; align-items: center; justify-content: center;
+}
+.success-card h3 { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+.success-card > p { font-size: 14px; color: var(--text-secondary); line-height: 1.65; max-width: 340px; }
+.success-details {
+  display: flex; gap: 24px;
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 22px;
+  width: 100%; justify-content: center;
+}
+.success-detail { display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.success-label  { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; }
+.success-value  { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+.success-note   { font-size: 13px; color: var(--text-muted); }
+
+/* Vision */
+.vision-section { background: var(--bg-section); }
+.vision-box {
+  max-width: 780px; margin: 0 auto;
+  text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 18px;
+}
+.vision-quote  { font-size: 72px; color: var(--primary); opacity: 0.2; line-height: 0.5; font-family: 'Sora', sans-serif; }
+.vision-text   { font-size: 19px; color: var(--text-primary); line-height: 1.8; font-style: italic; }
+.vision-caption { font-size: 13px; color: var(--text-muted); }
+.vision-pitch  { width: 100%; margin-top: 12px; }
+.pitch-card {
+  background: rgba(241,90,36,0.04);
+  border: 1.5px solid rgba(241,90,36,0.15);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px; text-align: left;
+}
+.pitch-label  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--primary); margin-bottom: 8px; }
+.pitch-card p { font-size: 16px; color: var(--text-secondary); line-height: 1.7; font-style: italic; }
+
+@media (max-width: 1024px) {
+  .contact-hero-inner { grid-template-columns: 1fr; }
+  .contact-form-wrap  { position: static; }
+  .form-row           { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) { .vision-text { font-size: 15px; } }
