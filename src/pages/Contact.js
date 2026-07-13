@@ -40,8 +40,8 @@ const Contact = () => {
               <div className="contact-info">
                 {[
                   { icon: <Mail size={20} />, label: 'Email', value: 'hello@bulkbazaar.in', link: 'mailto:hello@bulkbazaar.in' },
-                  { icon: <Phone size={20} />, label: 'Phone', value: '+91 98765 43210', link: 'tel:+919876543210' },
-                  { icon: <MapPin size={20} />, label: 'Submitted under', value: 'MSME Idea Hackathon 6.0 — India' },
+                  { icon: <Phone size={20} />, label: 'Phone', value: '0000000000', link: 'tel:0000000000' },
+                  { icon: <MapPin size={20} />, label: 'Submitted under', value: 'spartaX — India' },
                 ].map((item, i) => (
                   <div key={i} className="contact-info-item">
                     <div className="contact-info-icon">{item.icon}</div>
@@ -60,7 +60,7 @@ const Contact = () => {
               <div className="contact-hackathon">
                 <div className="hackathon-badge">
                   <Zap size={16} color="var(--yellow)" />
-                  <span>MSME Idea Hackathon 6.0</span>
+                  <span>spartaX</span>
                 </div>
                 <p>Bulk Bazaar was submitted under Industry 4.0 & 5.0 innovation track, aimed at transforming India's wholesale B2B ecosystem with AI.</p>
               </div>

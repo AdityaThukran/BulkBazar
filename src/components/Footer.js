@@ -24,7 +24,7 @@ const Footer = () => {
               <a href="mailto:hello@bulkbazaar.in" className="social-btn"><Mail size={16} /></a>
             </div>
             <div className="footer-badge">
-              🏆 MSME Idea Hackathon 6.0 — Industry 4.0 & 5.0
+              🏆 VentureX — Industry 4.0 & 5.0
             </div>
           </div>
 
@@ -58,11 +58,11 @@ const Footer = () => {
               </li>
               <li>
                 <Phone size={14} />
-                <span>+91 98765 43210</span>
+                <span>0000000000</span>
               </li>
               <li>
                 <MapPin size={14} />
-                <span>India — MSME Hackathon 6.0</span>
+                <span>India — VentureX</span>
               </li>
             </ul>
           </div>
@@ -82,7 +82,7 @@ const Footer = () => {
         </div>
 
         <div className="footer-bottom">
-          <p>© 2025 BulkBazaar. All rights reserved. | Submitted under MSME Idea Hackathon 6.0</p>
+          <p>© 2025 BulkBazaar. All rights reserved. | Submitted under spartaX</p>
           <div className="footer-legal">
             <a href="#privacy">Privacy Policy</a>
             <a href="#terms">Terms of Service</a>
