@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Send, CheckCircle2, ArrowRight, Zap } from 'lucide-react';
-import { supabase } from '../supabaseClient';
 import './Contact.css';
 
 const Contact = () => {
@@ -12,31 +11,13 @@ const Contact = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('waitlist')
-        .insert([
-          {
-            name: form.name,
-            email: form.email,
-            company: form.company || null,
-            role: form.role,
-            phone: form.phone || null,
-            message: form.message || null
-          }
-        ]);
-
-      if (error) throw error;
-      setSubmitted(true);
-    } catch (err) {
-      console.error('Supabase Error:', err);
-      alert('Error joining waitlist: ' + (err.message || 'Something went wrong. Please check your connection.'));
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      setSubmitted(true);
+    }, 1800);
   };
 
   return (
