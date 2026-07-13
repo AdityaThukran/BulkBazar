@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Upload, Brain, PackageSearch, Users, BarChart, ShoppingCart,
-  CreditCard, Truck, HeadphonesIcon, ArrowRight, ArrowDown, CheckCircle2, Zap
+  HeadphonesIcon, ArrowRight, ArrowDown, CheckCircle2, Zap
 } from 'lucide-react';
 import './HowItWorks.css';
 

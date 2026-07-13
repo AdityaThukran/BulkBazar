@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import CountUp from 'react-countup';
 import { useInView } from 'react-intersection-observer';
-import { ArrowRight, TrendingUp, Target, Globe } from 'lucide-react';
+import { ArrowRight, Globe } from 'lucide-react';
 import './Market.css';
 
 const Stat = ({ value, suffix, prefix, label, desc, color }) => {
