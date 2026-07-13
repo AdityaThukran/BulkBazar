@@ -147,7 +147,7 @@ const Home = () => {
             <div className="hero-left">
               <div className="hero-badges">
                 <span className="hero-badge hero-badge-gold">
-                  <Star size={12} fill="currentColor" /> spartaX
+                  <Star size={12} fill="currentColor" /> VentureX
                 </span>
                 <span className="hero-badge hero-badge-teal">
                   Industry 4.0 & 5.0

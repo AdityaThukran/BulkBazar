@@ -82,7 +82,7 @@ const Footer = () => {
         </div>
 
         <div className="footer-bottom">
-          <p>© 2025 BulkBazaar. All rights reserved. | Submitted under spartaX</p>
+          <p>© 2025 BulkBazaar. All rights reserved. | Submitted under VentureX</p>
           <div className="footer-legal">
             <a href="#privacy">Privacy Policy</a>
             <a href="#terms">Terms of Service</a>
