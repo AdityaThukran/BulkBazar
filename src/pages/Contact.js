@@ -40,7 +40,7 @@ const Contact = () => {
               <div className="contact-info">
                 {[
                   { icon: <Mail size={20} />, label: 'Email', value: 'hello@bulkbazaar.in', link: 'mailto:hello@bulkbazaar.in' },
-                  { icon: <Phone size={20} />, label: 'Phone', value: '0000000000', link: 'tel:0000000000' },
+                  { icon: <Phone size={20} />, label: 'Phone', value: '000-000-0000', link: 'tel:000-000-0000' },
                   { icon: <MapPin size={20} />, label: 'Submitted under', value: 'VentureX — India' },
                 ].map((item, i) => (
                   <div key={i} className="contact-info-item">

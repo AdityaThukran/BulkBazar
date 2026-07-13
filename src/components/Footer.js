@@ -58,7 +58,7 @@ const Footer = () => {
               </li>
               <li>
                 <Phone size={14} />
-                <span>0000000000</span>
+                <span>000-000-0000</span>
               </li>
               <li>
                 <MapPin size={14} />
@@ -82,7 +82,12 @@ const Footer = () => {
         </div>
 
         <div className="footer-bottom">
-          <p>© 2025 BulkBazaar. All rights reserved. | Submitted under VentureX</p>
+          <p>
+            © 2025 BulkBazaar. All rights reserved. | Submitted under VentureX | Design inspired by{' '}
+            <a href="https://karolbinkow.ski/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>
+              karolbinkow.ski
+            </a>
+          </p>
           <div className="footer-legal">
             <a href="#privacy">Privacy Policy</a>
             <a href="#terms">Terms of Service</a>
