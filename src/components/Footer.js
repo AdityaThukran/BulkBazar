@@ -19,8 +19,8 @@ const Footer = () => {
               AI-Powered Dead Stock Revival & Smart Procurement Platform — transforming India's wholesale ecosystem.
             </p>
             <div className="footer-socials">
-              <a href="#" className="social-btn"><Twitter size={16} /></a>
-              <a href="#" className="social-btn"><Linkedin size={16} /></a>
+              <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="social-btn"><Twitter size={16} /></a>
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="social-btn"><Linkedin size={16} /></a>
               <a href="mailto:hello@bulkbazaar.in" className="social-btn"><Mail size={16} /></a>
             </div>
             <div className="footer-badge">
@@ -41,11 +41,11 @@ const Footer = () => {
           <div className="footer-links-group">
             <h4>AI Features</h4>
             <ul>
-              <li><a href="#">Demand Forecasting</a></li>
-              <li><a href="#">Dead Stock ID</a></li>
-              <li><a href="#">Smart Matching</a></li>
-              <li><a href="#">Dynamic Pricing</a></li>
-              <li><a href="#">Inventory Engine</a></li>
+              <li><Link to="/how-it-works">Demand Forecasting</Link></li>
+              <li><Link to="/how-it-works">Dead Stock ID</Link></li>
+              <li><Link to="/how-it-works">Smart Matching</Link></li>
+              <li><Link to="/how-it-works">Dynamic Pricing</Link></li>
+              <li><Link to="/how-it-works">Inventory Engine</Link></li>
             </ul>
           </div>
 
@@ -84,9 +84,9 @@ const Footer = () => {
         <div className="footer-bottom">
           <p>© 2025 BulkBazaar. All rights reserved. | Submitted under MSME Idea Hackathon 6.0</p>
           <div className="footer-legal">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Cookie Policy</a>
+            <a href="#privacy">Privacy Policy</a>
+            <a href="#terms">Terms of Service</a>
+            <a href="#cookies">Cookie Policy</a>
           </div>
         </div>
       </div>
