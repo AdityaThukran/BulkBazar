@@ -23,7 +23,7 @@ const emptyProduct = {
 };
 
 const Dashboard = () => {
-  const { user, profile, signOut, updateProfile } = useAuth();
+  const { user, profile, loading: authLoading, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -186,7 +186,7 @@ const Dashboard = () => {
   useEffect(() => {
     fetchProducts();
     fetchOrders();
-  }, [fetchProducts, fetchOrders]);
+  }, [fetchProducts, fetchOrders, profile]);
 
   useEffect(() => {
     if (profile) {
@@ -326,6 +326,14 @@ const Dashboard = () => {
       style: 'currency', currency: 'INR', maximumFractionDigits: 0
     }).format(val);
   };
+
+  if (authLoading || (user && !profile)) {
+    return (
+      <div className="inventory-loading" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', fontFamily: 'var(--font-mono)' }}>
+        Loading workspace...
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-page">
