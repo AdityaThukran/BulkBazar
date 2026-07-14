@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
@@ -26,8 +26,13 @@ const emptyProduct = {
 const Dashboard = () => {
   const { user, profile, loading: authLoading, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    return ['overview', 'inventory', 'orders', 'profile'].includes(tab) ? tab : 'overview';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Products state

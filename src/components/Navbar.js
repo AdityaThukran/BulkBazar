@@ -66,11 +66,11 @@ const Navbar = () => {
         <div className="navbar-actions">
           {user ? (
             <>
-              <Link to="/dashboard" className="nav-user-badge">
+              <Link to="/dashboard?tab=profile" className="nav-user-badge">
                 <span className="nav-user-avatar">
                   {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
-                <span className="nav-user-name">{profile?.full_name?.split(' ')[0] || 'Dashboard'}</span>
+                <span className="nav-user-name">{profile?.full_name?.split(' ')[0] || 'Profile'}</span>
               </Link>
               <Link to="/dashboard" className="btn-nav-cta" style={{ padding: '9px 22px', fontSize: '14px' }}>
                 <LayoutDashboard size={14} />
