@@ -1491,7 +1491,7 @@ const Dashboard = () => {
                       </div>
 
                       <Link
-                        to={`/marketplace/product/${prod.id}`}
+                        to={`/marketplace/${prod.id}`}
                         className="prod-card-buy-btn"
                         onClick={() => setSelectedSellerShop(null)}
                       >
