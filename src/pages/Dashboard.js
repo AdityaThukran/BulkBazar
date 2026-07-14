@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
-  ChevronDown, ShoppingCart, ClipboardList, Store, MessageSquare, Brain
+  ChevronDown, ShoppingCart, ClipboardList, Store, MessageSquare, Brain, Camera
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -20,7 +20,8 @@ const CONDITIONS = ['new', 'like-new', 'good', 'fair', 'damaged'];
 
 const emptyProduct = {
   name: '', description: '', category: 'Other', quantity: 0,
-  unit: 'pieces', price: 0, mrp: 0, condition: 'new', status: 'active'
+  unit: 'pieces', price: 0, mrp: 0, condition: 'new', status: 'active',
+  image_url: ''
 };
 
 const Dashboard = () => {
@@ -47,6 +48,8 @@ const Dashboard = () => {
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -424,6 +427,8 @@ const Dashboard = () => {
   const openAddModal = () => {
     setEditingProduct(null);
     setProductForm({ ...emptyProduct });
+    setImagePreview(null);
+    setSelectedFile(null);
     setFormError('');
     setShowModal(true);
   };
@@ -440,9 +445,36 @@ const Dashboard = () => {
       mrp: Number(product.mrp) || 0,
       condition: product.condition,
       status: product.status,
+      image_url: product.image_url || '',
     });
+    setImagePreview(product.image_url || null);
+    setSelectedFile(null);
     setFormError('');
     setShowModal(true);
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError('Image size should be less than 5MB.');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please select a valid image file (PNG, JPG, WEBP, etc.)');
+      return;
+    }
+
+    setSelectedFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setFormError('');
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setImagePreview(null);
   };
 
   const handleSaveProduct = async (e) => {
@@ -455,11 +487,45 @@ const Dashboard = () => {
     setFormError('');
 
     try {
+      let imageUrl = productForm.image_url;
+
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, selectedFile, { cacheControl: '3600', upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(fileName);
+
+        imageUrl = urlData.publicUrl;
+      } else if (!imagePreview) {
+        imageUrl = '';
+      }
+
+      const payload = {
+        name: productForm.name,
+        description: productForm.description,
+        category: productForm.category,
+        quantity: productForm.quantity,
+        unit: productForm.unit,
+        price: productForm.price,
+        mrp: productForm.mrp,
+        condition: productForm.condition,
+        status: productForm.status,
+        image_url: imageUrl
+      };
+
       if (editingProduct) {
         const { error } = await supabase
           .from('products')
           .update({
-            ...productForm,
+            ...payload,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingProduct.id);
@@ -467,7 +533,7 @@ const Dashboard = () => {
       } else {
         const { error } = await supabase
           .from('products')
-          .insert([{ ...productForm, user_id: user.id }]);
+          .insert([{ ...payload, user_id: user.id }]);
         if (error) throw error;
       }
       setShowModal(false);
@@ -1295,6 +1361,39 @@ const Dashboard = () => {
                   placeholder="Brief description of the product, condition, etc."
                   rows={3}
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Product Photo (Optional)</label>
+                <div className="product-image-upload-wrapper">
+                  {imagePreview ? (
+                    <div className="product-image-preview-container">
+                      <img src={imagePreview} alt="Preview" className="product-image-preview" />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="remove-image-btn"
+                        title="Remove image"
+                      >
+                        <Trash2 size={14} /> Remove Photo
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="image-upload-dropzone">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        style={{ display: 'none' }}
+                      />
+                      <div className="dropzone-content">
+                        <Camera size={24} className="dropzone-icon" />
+                        <span className="dropzone-text">Click to upload product photo</span>
+                        <span className="dropzone-hint">Supports PNG, JPG, WEBP (Max 5MB)</span>
+                      </div>
+                    </label>
+                  )}
+                </div>
               </div>
 
               <div className="form-row">

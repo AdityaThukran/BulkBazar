@@ -20,6 +20,16 @@ const ProductCard = ({ product }) => {
 
   return (
     <Link to={`/marketplace/${product.id}`} className="product-card">
+      {product.image_url ? (
+        <div className="product-card-image-wrapper">
+          <img src={product.image_url} alt={product.name} className="product-card-image" />
+        </div>
+      ) : (
+        <div className="product-card-image-wrapper product-card-image-placeholder">
+          <Package size={32} className="placeholder-icon" />
+        </div>
+      )}
+
       <div className="product-card-header">
         <span className="product-card-category">
           <Tag size={10} /> {product.category}

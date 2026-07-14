@@ -126,6 +126,16 @@ const ProductDetail = () => {
         <div className="product-detail-layout">
           {/* ===== LEFT: Product Info ===== */}
           <div className="product-detail-left">
+            {product.image_url ? (
+              <div className="product-detail-image-card">
+                <img src={product.image_url} alt={product.name} className="product-detail-large-image" />
+              </div>
+            ) : (
+              <div className="product-detail-image-card product-detail-image-placeholder">
+                <Package size={64} className="placeholder-icon" />
+              </div>
+            )}
+
             <div className="product-detail-card">
               <div className="product-detail-badges">
                 <span className="product-detail-category">
