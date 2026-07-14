@@ -174,3 +174,116 @@ Best regards,
 ${product.profiles?.full_name || 'Seller'}
 ${product.profiles?.company || 'Supplier partner'}`;
 };
+
+/**
+ * Optimizes a product's name and description for B2B wholesale buyers.
+ */
+export const optimizeListing = (name, description, category) => {
+  const cleanName = name ? name.trim() : 'Unused Material';
+  const cleanDesc = description ? description.trim() : 'No current details provided.';
+  
+  // 1. Create a professional, clear B2B listing title
+  let optimizedName = cleanName;
+  if (!cleanName.toLowerCase().includes('wholesale') && !cleanName.toLowerCase().includes('bulk') && !cleanName.toLowerCase().includes('lot')) {
+    optimizedName = `${cleanName} - Wholesale Dead Stock Lot`;
+  }
+  if (!optimizedName.includes('(') && category) {
+    optimizedName = `${optimizedName} (${category})`;
+  }
+
+  // 2. Generate a structured B2B description
+  const optimizedDescription = `✨ [AI Optimized Dead Stock Listing]
+
+📋 Product Summary:
+${cleanDesc}
+
+💡 B2B Revival Specifications:
+- Category resale grade: Premium Commercial Clearance
+- Standard Packaging: Industrial protective pallets / bulk wrapping
+- Logistical readiness: Loading dock access ready for immediate dispatch
+- Best suited for: MSME outlets, discount retail suppliers, and secondary manufacturers.
+
+🚚 Shipping & Deals:
+Open to tiered volume discounts. Contact us via the live BulkBazar chat drawer to make a custom counter-offer.`;
+
+  return { name: optimizedName, description: optimizedDescription };
+};
+
+/**
+ * Generates three actionable liquidation strategies for a given dead stock listing.
+ */
+export const generateLiquidationStrategies = (product) => {
+  if (!product) return [];
+
+  const name = product.name || 'this stock';
+  
+  const strategies = [
+    {
+      title: '📦 Dynamic Bundle Package Offer',
+      description: `Package ${product.quantity} units of ${name} with slow-moving items in the same category. Promote it as a single high-discount bundle to MSMEs looking for a low cost-of-entry lot.`
+    },
+    {
+      title: '🏭 Industrial Supply Redirect',
+      description: `Redirect this lot to processing plants, upcycling firms, or secondary assembly factories. Since condition is ${product.condition}, it serves as high-quality raw materials or spare stock.`
+    },
+    {
+      title: '🚚 Regional Discount Liquidators',
+      description: `Directly pitch this stock to discount dealers in major retail markets (e.g. Karol Bagh/Delhi or nearby trade zones). They focus on off-season and surplus acquisition.`
+    }
+  ];
+
+  return strategies;
+};
+
+/**
+ * AI Chat negotiation assistant: suggests B2B counter-offers, firm pitches, and bundling responses.
+ */
+export const suggestChatResponse = (lastMessage, product, role, style) => {
+  if (!product) return 'Let me check the product details and get back to you.';
+  
+  const price = Number(product.price);
+  const name = product.name || 'this stock';
+  const msgLower = (lastMessage || '').toLowerCase();
+
+  // Try to parse if there's a price mentioned in the last message
+  let offerPrice = null;
+  const match = msgLower.match(/(?:rs|inr|₹|\$)\s*(\d+)/) || msgLower.match(/(\d+)\s*(?:rs|inr|₹|bucks|rupees)/);
+  if (match) {
+    offerPrice = Number(match[1]);
+  }
+
+  if (role === 'seller') {
+    if (style === 'counter') {
+      const counterPrice = offerPrice 
+        ? Math.round((price + offerPrice) / 2) // Middle ground
+        : Math.round(price * 0.92); // 8% discount
+      return `Hi, thanks for the offer. While we cannot sell at your suggested price, we can meet in the middle at ₹${counterPrice} per unit for this lot of ${name}. Would that work for you?`;
+    }
+    
+    if (style === 'firm') {
+      return `Thank you for your interest. Because we have already discounted this ${name} lot significantly (${Math.round((product.mrp - price) / product.mrp * 100) || 40}% off retail), ₹${price} per unit is our final price. However, we can help coordinate prompt loading and logistics.`;
+    }
+    
+    if (style === 'bundle') {
+      const bundlePrice = Math.round(price * 0.85); // 15% discount for taking everything
+      return `If you are willing to purchase the entire lot of ${product.quantity} ${product.unit} of ${name}, we can offer a bulk liquidation discount, bringing the price down to ₹${bundlePrice} per unit. Let us know if you'd like to proceed.`;
+    }
+  } else {
+    // Buyer responses
+    if (style === 'counter') {
+      const targetPrice = Math.round(price * 0.8); // Propose 20% off
+      return `Hi, I am interested in this lot of ${name}. Given that it is surplus stock, would you be open to an offer of ₹${targetPrice} per unit? We can handle quick pick-up.`;
+    }
+    
+    if (style === 'firm') {
+      return `Thank you for the update. Our budget for this category is quite firm, but we are ready to proceed with purchasing ${Math.min(10, product.quantity)} units immediately if you can confirm logistics.`;
+    }
+    
+    if (style === 'bundle') {
+      const targetBundlePrice = Math.round(price * 0.75); // Propose 25% off for all
+      return `We are open to clearing your entire inventory of ${product.quantity} units of ${name} in one go. Can you offer a volume clearing price of ₹${targetBundlePrice} per unit for the whole lot?`;
+    }
+  }
+
+  return 'Sounds good, let\'s negotiate the terms.';
+};

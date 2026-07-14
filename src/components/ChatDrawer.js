@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, MessageSquare } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { suggestChatResponse } from '../utils/aiEngine';
 import './ChatDrawer.css';
 
 const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, orderTitle }) => {
   const [messages, setMessages] = useState([]);
   const [newMsg, setNewMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [product, setProduct] = useState(null);
+  const [role, setRole] = useState('seller');
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -46,7 +49,33 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
       }
     };
 
+    // Fetch product details for AI negotiation
+    const fetchOrderDetails = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            products (*)
+          `)
+          .eq('id', orderId)
+          .single();
+        if (error) throw error;
+        if (data) {
+          setProduct(data.products);
+          if (data.buyer_id === currentUser.id) {
+            setRole('buyer');
+          } else {
+            setRole('seller');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching order product info:', err);
+      }
+    };
+
     fetchChatHistory();
+    fetchOrderDetails();
 
     // Subscribe to new realtime messages
     const channel = supabase
@@ -106,6 +135,13 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
     }
   };
 
+  const handleSuggestResponse = (style) => {
+    if (!product) return;
+    const lastMsgText = messages.length > 0 ? messages[messages.length - 1].text : '';
+    const suggestion = suggestChatResponse(lastMsgText, product, role, style);
+    setNewMsg(suggestion);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -154,6 +190,16 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
           )}
           <div ref={chatEndRef} />
         </div>
+
+        {/* AI Copilot Suggestion Bar */}
+        {product && (
+          <div className="chat-drawer-ai-copilot">
+            <span className="copilot-lbl">✨ AI Copilot:</span>
+            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('counter')}>Counter</button>
+            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('firm')}>Firm</button>
+            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('bundle')}>Bulk Bundle</button>
+          </div>
+        )}
 
         {/* Message Input Box */}
         <form onSubmit={handleSendMessage} className="chat-drawer-input-form">

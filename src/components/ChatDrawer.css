@@ -166,6 +166,59 @@
   text-align: right;
 }
 
+/* AI Copilot Suggestion Bar */
+.chat-drawer-ai-copilot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg-section);
+  border-top: 2px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chat-drawer-ai-copilot::-webkit-scrollbar {
+  display: none;
+}
+
+.copilot-lbl {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.copilot-btn {
+  background: var(--bg-white);
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.1s;
+}
+
+.copilot-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 1.5px 1.5px 0px var(--border);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.copilot-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
 /* Input Form */
 .chat-drawer-input-form {
   display: flex;
