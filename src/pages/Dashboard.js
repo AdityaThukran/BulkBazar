@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
-  ChevronDown, ShoppingCart, ClipboardList
+  ChevronDown, ShoppingCart, ClipboardList, Store
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -329,10 +329,16 @@ const Dashboard = () => {
           </button>
         </nav>
 
-        <button className="sidebar-logout" onClick={handleLogout}>
-          <LogOut size={18} />
-          Log Out
-        </button>
+        <div className="sidebar-footer">
+          <Link to="/marketplace" className="sidebar-marketplace-btn">
+            <Store size={16} />
+            Visit Marketplace
+          </Link>
+          <button className="sidebar-logout" onClick={handleLogout}>
+            <LogOut size={18} />
+            Log Out
+          </button>
+        </div>
       </aside>
 
       {/* Sidebar overlay for mobile */}

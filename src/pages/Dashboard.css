@@ -142,13 +142,42 @@
   font-weight: 600;
 }
 
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--bg-section);
+}
+
+.sidebar-marketplace-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--accent);
+  border: none;
+  border-bottom: 2px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--primary);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.sidebar-marketplace-btn:hover {
+  background: var(--accent-dark);
+  color: var(--primary);
+}
+
 .sidebar-logout {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
   border: none;
-  border-top: 2px solid var(--bg-section);
   background: none;
   cursor: pointer;
   font-family: var(--font-body);
