@@ -183,6 +183,41 @@ const Dashboard = () => {
     }
   };
 
+  // Helper to calculate category metrics
+  const getCategoryStats = () => {
+    const categoryValues = {};
+    if (profile?.role === 'buyer') {
+      orders.forEach(o => {
+        const cat = o.products?.category || 'Other';
+        categoryValues[cat] = (categoryValues[cat] || 0) + Number(o.total_price);
+      });
+    } else {
+      products.forEach(p => {
+        categoryValues[p.category] = (categoryValues[p.category] || 0) + (p.quantity * Number(p.price));
+      });
+    }
+
+    const totalValue = Object.values(categoryValues).reduce((sum, v) => sum + v, 0) || 1;
+    return Object.keys(categoryValues).map(cat => ({
+      name: cat,
+      value: categoryValues[cat],
+      percentage: Math.round((categoryValues[cat] / totalValue) * 100)
+    })).sort((a, b) => b.value - a.value);
+  };
+
+  // Helper to calculate order status metrics
+  const getOrderStatusStats = () => {
+    const statuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+    const counts = {};
+    statuses.forEach(s => counts[s] = 0);
+    orders.forEach(o => {
+      if (counts[o.status] !== undefined) {
+        counts[o.status]++;
+      }
+    });
+    return counts;
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
@@ -493,6 +528,95 @@ const Dashboard = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Analytics & Sales Charts */}
+              <div className="overview-section">
+                <h3>Performance Analytics</h3>
+                <div className="analytics-charts-grid">
+                  {/* Category share chart */}
+                  <div className="analytics-chart-card card">
+                    <h4 className="chart-card-title">
+                      {profile?.role === 'buyer' ? 'Spending by Category' : 'Inventory Share by Category'}
+                    </h4>
+                    <div className="category-chart-list">
+                      {getCategoryStats().length === 0 ? (
+                        <p className="no-data-msg">No inventory data available.</p>
+                      ) : (
+                        getCategoryStats().map((cat, idx) => {
+                          const colors = ['var(--accent)', 'var(--yellow)', 'var(--purple)', 'var(--blue)', '#f87171'];
+                          const barColor = colors[idx % colors.length];
+                          return (
+                            <div key={cat.name} className="category-chart-row">
+                              <div className="category-row-header">
+                                <span className="category-row-name">{cat.name}</span>
+                                <span className="category-row-value">
+                                  {formatCurrency(cat.value)} ({cat.percentage}%)
+                                </span>
+                              </div>
+                              <div className="category-bar-outer">
+                                <div
+                                  className="category-bar-inner"
+                                  style={{
+                                    width: `${cat.percentage}%`,
+                                    background: barColor
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Order Status Tracking Funnel */}
+                  <div className="analytics-chart-card card">
+                    <h4 className="chart-card-title">Order Status Tracking</h4>
+                    <div className="status-funnel-list">
+                      {Object.values(getOrderStatusStats()).reduce((a, b) => a + b, 0) === 0 ? (
+                        <p className="no-data-msg">No orders placed yet.</p>
+                      ) : (
+                        Object.keys(getOrderStatusStats()).map(status => {
+                          const count = getOrderStatusStats()[status];
+                          const maxCount = Math.max(...Object.values(getOrderStatusStats())) || 1;
+                          const widthPct = Math.round((count / maxCount) * 100);
+                          const statusLabels = {
+                            pending: '⏳ Pending',
+                            confirmed: '✅ Confirmed',
+                            shipped: '🚚 Shipped',
+                            delivered: '🎁 Delivered',
+                            cancelled: '❌ Cancelled'
+                          };
+                          const statusColors = {
+                            pending: '#f59e0b',
+                            confirmed: '#3b82f6',
+                            shipped: '#a78bfa',
+                            delivered: '#10b981',
+                            cancelled: '#9ca3af'
+                          };
+                          return (
+                            <div key={status} className="funnel-row">
+                              <div className="funnel-label-wrap">
+                                <span className="funnel-label">{statusLabels[status]}</span>
+                                <span className="funnel-count">{count} order{count !== 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="funnel-bar-outer">
+                                <div
+                                  className="funnel-bar-inner"
+                                  style={{
+                                    width: `${widthPct}%`,
+                                    background: statusColors[status] || 'var(--accent)'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Quick Actions */}
