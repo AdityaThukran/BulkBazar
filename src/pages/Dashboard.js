@@ -96,32 +96,88 @@ const Dashboard = () => {
     if (!user) return;
     setOrdersLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*, products(name, unit, category)')
-        .eq('seller_id', user.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setOrders(data || []);
-      setStats(prev => ({
-        ...prev,
-        pendingOrders: (data || []).filter(o => o.status === 'pending').length
-      }));
+      if (profile?.role === 'buyer') {
+        // Fetch outgoing orders placed by this buyer
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, products(name, unit, category, profiles(full_name, company))')
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setOrders(data || []);
+        
+        const ords = data || [];
+        setStats({
+          totalProducts: ords.length,
+          totalValue: ords.reduce((sum, o) => sum + Number(o.total_price), 0),
+          lowStock: ords.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length,
+          activeCount: ords.filter(o => o.status === 'delivered').length,
+          pendingOrders: 0
+        });
+      } else {
+        // Fetch incoming orders received by this seller
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, products(name, unit, category)')
+          .eq('seller_id', user.id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setOrders(data || []);
+        setStats(prev => ({
+          ...prev,
+          pendingOrders: (data || []).filter(o => o.status === 'pending').length
+        }));
+      }
     } catch (err) {
       console.error('Error fetching orders:', err);
     } finally {
       setOrdersLoading(false);
     }
-  }, [user]);
+  }, [user, profile]);
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
+      // 1. Fetch order details first
+      const { data: orderData, error: fetchErr } = await supabase
+        .from('orders')
+        .select('product_id, quantity, status')
+        .eq('id', orderId)
+        .single();
+      
+      if (fetchErr) throw fetchErr;
+
+      // 2. If status is being updated to 'delivered' and it wasn't already 'delivered'
+      if (newStatus === 'delivered' && orderData.status !== 'delivered') {
+        // Fetch current product quantity
+        const { data: productData, error: prodErr } = await supabase
+          .from('products')
+          .select('quantity')
+          .eq('id', orderData.product_id)
+          .single();
+
+        if (prodErr) throw prodErr;
+
+        // Compute new quantity
+        const newQty = Math.max(0, productData.quantity - orderData.quantity);
+
+        // Update product quantity
+        const { error: updateProdErr } = await supabase
+          .from('products')
+          .update({ quantity: newQty })
+          .eq('id', orderData.product_id);
+
+        if (updateProdErr) throw updateProdErr;
+      }
+
+      // 3. Update the order status
       const { error } = await supabase
         .from('orders')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', orderId);
       if (error) throw error;
+
       await fetchOrders();
+      await fetchProducts(); // Refresh products as well since quantity changed
     } catch (err) {
       alert('Failed to update order: ' + err.message);
     }
@@ -303,20 +359,22 @@ const Dashboard = () => {
             <LayoutDashboard size={18} />
             Overview
           </button>
-          <button
-            className={`sidebar-nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('inventory'); setSidebarOpen(false); }}
-          >
-            <Package size={18} />
-            Inventory
-          </button>
+          {profile?.role !== 'buyer' && (
+            <button
+              className={`sidebar-nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('inventory'); setSidebarOpen(false); }}
+            >
+              <Package size={18} />
+              Inventory
+            </button>
+          )}
           <button
             className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
             onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
           >
             <ClipboardList size={18} />
-            Orders
-            {stats.pendingOrders > 0 && (
+            {profile?.role === 'buyer' ? 'My Orders' : 'Orders'}
+            {profile?.role !== 'buyer' && stats.pendingOrders > 0 && (
               <span className="sidebar-orders-badge">{stats.pendingOrders}</span>
             )}
           </button>
@@ -374,7 +432,9 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-card-info">
                     <span className="stat-card-value">{stats.totalProducts}</span>
-                    <span className="stat-card-label">Total Products</span>
+                    <span className="stat-card-label">
+                      {profile?.role === 'buyer' ? 'Total Orders' : 'Total Products'}
+                    </span>
                   </div>
                 </div>
 
@@ -384,7 +444,9 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-card-info">
                     <span className="stat-card-value">{formatCurrency(stats.totalValue)}</span>
-                    <span className="stat-card-label">Total Inventory Value</span>
+                    <span className="stat-card-label">
+                      {profile?.role === 'buyer' ? 'Total Spent' : 'Total Inventory Value'}
+                    </span>
                   </div>
                 </div>
 
@@ -394,7 +456,9 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-card-info">
                     <span className="stat-card-value">{stats.lowStock}</span>
-                    <span className="stat-card-label">Low Stock Alerts</span>
+                    <span className="stat-card-label">
+                      {profile?.role === 'buyer' ? 'Pending Deliveries' : 'Low Stock Alerts'}
+                    </span>
                   </div>
                 </div>
 
@@ -404,33 +468,45 @@ const Dashboard = () => {
                   </div>
                   <div className="stat-card-info">
                     <span className="stat-card-value">{stats.activeCount}</span>
-                    <span className="stat-card-label">Active Listings</span>
+                    <span className="stat-card-label">
+                      {profile?.role === 'buyer' ? 'Completed Orders' : 'Active Listings'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('orders')}>
-                  <div className="stat-card-icon" style={{ background: '#60a5fa' }}>
-                    <ClipboardList size={22} />
+                {profile?.role !== 'buyer' && (
+                  <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('orders')}>
+                    <div className="stat-card-icon" style={{ background: '#60a5fa' }}>
+                      <ClipboardList size={22} />
+                    </div>
+                    <div className="stat-card-info">
+                      <span className="stat-card-value">{stats.pendingOrders}</span>
+                      <span className="stat-card-label">Pending Orders</span>
+                    </div>
                   </div>
-                  <div className="stat-card-info">
-                    <span className="stat-card-value">{stats.pendingOrders}</span>
-                    <span className="stat-card-label">Pending Orders</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Quick Actions */}
               <div className="overview-section">
                 <h3>Quick Actions</h3>
                 <div className="quick-actions">
-                  <button className="quick-action-btn" onClick={() => { setActiveTab('inventory'); openAddModal(); }}>
-                    <Plus size={18} /> Add New Product
-                  </button>
-                  <button className="quick-action-btn" onClick={() => setActiveTab('inventory')}>
-                    <Archive size={18} /> View Inventory
-                  </button>
+                  {profile?.role === 'buyer' ? (
+                    <Link to="/marketplace" className="quick-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <Store size={18} /> Browse Marketplace
+                    </Link>
+                  ) : (
+                    <>
+                      <button className="quick-action-btn" onClick={() => { setActiveTab('inventory'); openAddModal(); }}>
+                        <Plus size={18} /> Add New Product
+                      </button>
+                      <button className="quick-action-btn" onClick={() => setActiveTab('inventory')}>
+                        <Archive size={18} /> View Inventory
+                      </button>
+                    </>
+                  )}
                   <button className="quick-action-btn" onClick={() => { setActiveTab('orders'); fetchOrders(); }}>
-                    <ClipboardList size={18} /> View Orders
+                    <ClipboardList size={18} /> {profile?.role === 'buyer' ? 'View My Orders' : 'View Incoming Orders'}
                   </button>
                   <button className="quick-action-btn" onClick={() => setActiveTab('profile')}>
                     <UserCircle size={18} /> Edit Profile
@@ -438,32 +514,62 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Recent Products */}
+              {/* Recent Section */}
               <div className="overview-section">
-                <h3>Recent Products</h3>
-                {products.length === 0 ? (
-                  <div className="empty-state">
-                    <Package size={40} />
-                    <p>No products yet. Add your first product to get started!</p>
-                    <button className="quick-action-btn" onClick={() => { setActiveTab('inventory'); openAddModal(); }}>
-                      <Plus size={18} /> Add Product
-                    </button>
-                  </div>
+                <h3>{profile?.role === 'buyer' ? 'Recent Orders' : 'Recent Products'}</h3>
+                {profile?.role === 'buyer' ? (
+                  orders.length === 0 ? (
+                    <div className="empty-state">
+                      <ClipboardList size={40} />
+                      <p>You haven't placed any orders yet. Visit the marketplace to browse dead stock!</p>
+                      <Link to="/marketplace" className="quick-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignSelf: 'center' }}>
+                        Browse Marketplace
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="recent-products-list">
+                      {orders.slice(0, 5).map(order => (
+                        <div key={order.id} className="recent-product-item">
+                          <div className="recent-product-info">
+                            <span className="recent-product-name">{order.products?.name || '—'}</span>
+                            <span className="recent-product-category">{order.products?.profiles?.full_name || 'Seller'}</span>
+                          </div>
+                          <div className="recent-product-meta">
+                            <span className="recent-product-qty">{order.quantity} {order.products?.unit || ''}</span>
+                            <span className="recent-product-price">{formatCurrency(order.total_price)}</span>
+                            <span className={`order-status-badge order-status-${order.status}`} style={{ padding: '2px 8px', fontSize: '10px' }}>
+                              {order.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
-                  <div className="recent-products-list">
-                    {products.slice(0, 5).map(product => (
-                      <div key={product.id} className="recent-product-item">
-                        <div className="recent-product-info">
-                          <span className="recent-product-name">{product.name}</span>
-                          <span className="recent-product-category">{product.category}</span>
+                  products.length === 0 ? (
+                    <div className="empty-state">
+                      <Package size={40} />
+                      <p>No products yet. Add your first product to get started!</p>
+                      <button className="quick-action-btn" onClick={() => { setActiveTab('inventory'); openAddModal(); }}>
+                        <Plus size={18} /> Add Product
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="recent-products-list">
+                      {products.slice(0, 5).map(product => (
+                        <div key={product.id} className="recent-product-item">
+                          <div className="recent-product-info">
+                            <span className="recent-product-name">{product.name}</span>
+                            <span className="recent-product-category">{product.category}</span>
+                          </div>
+                          <div className="recent-product-meta">
+                            <span className="recent-product-qty">{product.quantity} {product.unit}</span>
+                            <span className="recent-product-price">{formatCurrency(product.price)}</span>
+                          </div>
                         </div>
-                        <div className="recent-product-meta">
-                          <span className="recent-product-qty">{product.quantity} {product.unit}</span>
-                          <span className="recent-product-price">{formatCurrency(product.price)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -595,20 +701,29 @@ const Dashboard = () => {
               ) : orders.length === 0 ? (
                 <div className="empty-state">
                   <ClipboardList size={40} />
-                  <p>No orders yet. Once buyers place orders on your products, they will appear here.</p>
+                  <p>
+                    {profile?.role === 'buyer'
+                      ? "You haven't placed any orders yet. Visit the marketplace to place an order."
+                      : "No orders yet. Once buyers place orders on your products, they will appear here."}
+                  </p>
+                  {profile?.role === 'buyer' && (
+                    <Link to="/marketplace" className="quick-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignSelf: 'center' }}>
+                      Browse Marketplace
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="inventory-table-wrap">
                   <table className="inventory-table">
                     <thead>
                       <tr>
-                        <th>Buyer</th>
+                        <th>{profile?.role === 'buyer' ? 'Seller' : 'Buyer'}</th>
                         <th>Product</th>
                         <th>Qty</th>
                         <th>Total</th>
                         <th>Date</th>
                         <th>Status</th>
-                        <th>Update</th>
+                        {profile?.role !== 'buyer' && <th>Update</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -616,8 +731,16 @@ const Dashboard = () => {
                         <tr key={order.id}>
                           <td>
                             <div className="product-name-cell">
-                              <span className="product-name">{order.buyer_name}</span>
-                              <span className="product-desc">{order.buyer_email}</span>
+                              <span className="product-name">
+                                {profile?.role === 'buyer'
+                                  ? (order.products?.profiles?.full_name || 'Seller')
+                                  : order.buyer_name}
+                              </span>
+                              <span className="product-desc">
+                                {profile?.role === 'buyer'
+                                  ? (order.products?.profiles?.company || 'Manufacturer')
+                                  : order.buyer_email}
+                              </span>
                             </div>
                           </td>
                           <td>
@@ -636,19 +759,21 @@ const Dashboard = () => {
                               {order.status}
                             </span>
                           </td>
-                          <td>
-                            <select
-                              className="order-status-select"
-                              value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="confirmed">Confirmed</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
-                          </td>
+                          {profile?.role !== 'buyer' && (
+                            <td>
+                              <select
+                                className="order-status-select"
+                                value={order.status}
+                                onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
