@@ -62,6 +62,9 @@ const Dashboard = () => {
   const [showMatchModal, setShowMatchModal] = useState(false);
 
   // Stats
+  const [selectedSellerShop, setSelectedSellerShop] = useState(null);
+  const [sellerShopProducts, setSellerShopProducts] = useState([]);
+  const [sellerShopLoading, setSellerShopLoading] = useState(false);
   const [stats, setStats] = useState({
     totalProducts: 0, totalValue: 0, lowStock: 0, activeCount: 0, pendingOrders: 0
   });
@@ -164,7 +167,7 @@ const Dashboard = () => {
         // Fetch outgoing orders placed by this buyer
         const { data, error } = await supabase
           .from('orders')
-          .select('*, products(name, unit, category, profiles(full_name, company))')
+          .select('*, products(name, unit, category, user_id, profiles(id, full_name, company))')
           .eq('buyer_id', user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -373,6 +376,35 @@ const Dashboard = () => {
       });
     }
   }, [profile]);
+
+  // Load seller's inventory for Shop Peek
+  useEffect(() => {
+    if (!selectedSellerShop) {
+      setSellerShopProducts([]);
+      return;
+    }
+
+    const fetchSellerProducts = async () => {
+      setSellerShopLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', selectedSellerShop.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setSellerShopProducts(data || []);
+      } catch (err) {
+        console.error('Error fetching seller products:', err);
+      } finally {
+        setSellerShopLoading(false);
+      }
+    };
+
+    fetchSellerProducts();
+  }, [selectedSellerShop]);
 
   // Product CRUD
   const handleProductFormChange = (e) => {
@@ -1054,18 +1086,30 @@ const Dashboard = () => {
                             </span>
                           </td>
                           <td>
-                            <button
-                              className={`chat-trigger-btn ${unreadMessages[order.id] ? 'has-unread' : ''}`}
-                              title="Open Chat"
-                              onClick={() => setActiveChatOrder(order)}
-                            >
-                              <MessageSquare size={14} /> Chat
-                              {unreadMessages[order.id] > 0 && (
-                                <span className="chat-btn-badge">
-                                  {unreadMessages[order.id]}
-                                </span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                className={`chat-trigger-btn ${unreadMessages[order.id] ? 'has-unread' : ''}`}
+                                title="Open Chat"
+                                onClick={() => setActiveChatOrder(order)}
+                              >
+                                <MessageSquare size={14} /> Chat
+                                {unreadMessages[order.id] > 0 && (
+                                  <span className="chat-btn-badge">
+                                    {unreadMessages[order.id]}
+                                  </span>
+                                )}
+                              </button>
+
+                              {profile?.role === 'buyer' && order.products?.profiles?.id && (
+                                <button
+                                  className="chat-trigger-btn view-shop-btn"
+                                  title="View Seller's Active Listings"
+                                  onClick={() => setSelectedSellerShop(order.products.profiles)}
+                                >
+                                  <Store size={14} /> Shop
+                                </button>
                               )}
-                            </button>
+                            </div>
                           </td>
                           {profile?.role !== 'buyer' && (
                             <td>
@@ -1394,6 +1438,69 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======== SELLER SHOP PEEK MODAL ======== */}
+      {selectedSellerShop && (
+        <div className="modal-overlay" onClick={() => setSelectedSellerShop(null)}>
+          <div className="modal-card seller-shop-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Store size={22} color="var(--accent-dark)" />
+                <div>
+                  <h3 style={{ margin: 0 }}>{selectedSellerShop.company || 'Seller Shop'}</h3>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    Seller: {selectedSellerShop.full_name}
+                  </span>
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setSelectedSellerShop(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="seller-shop-modal-body">
+              {sellerShopLoading ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
+                  Loading seller catalog...
+                </div>
+              ) : sellerShopProducts.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
+                  No other active listings found for this seller.
+                </div>
+              ) : (
+                <div className="seller-shop-grid">
+                  {sellerShopProducts.map(prod => (
+                    <div key={prod.id} className="seller-shop-prod-card card">
+                      <div className="prod-card-category-badge">{prod.category}</div>
+                      <h4 className="prod-card-title">{prod.name}</h4>
+                      <p className="prod-card-description">{prod.description || 'No description provided.'}</p>
+                      
+                      <div className="prod-card-stats">
+                        <div>
+                          <span className="stat-lbl">Price</span>
+                          <span className="stat-val">{formatCurrency(prod.price)}</span>
+                        </div>
+                        <div>
+                          <span className="stat-lbl">Stock</span>
+                          <span className="stat-val">{prod.quantity} {prod.unit || 'pcs'}</span>
+                        </div>
+                      </div>
+
+                      <Link
+                        to={`/marketplace/product/${prod.id}`}
+                        className="prod-card-buy-btn"
+                        onClick={() => setSelectedSellerShop(null)}
+                      >
+                        Buy Now
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
