@@ -902,7 +902,7 @@
   color: var(--text-secondary);
 }
 
-.profile-form .form-group input,
+.profile-form .form-group input:not([type="checkbox"]),
 .profile-form .form-group select {
   font-family: var(--font-body);
   font-size: 15px;
@@ -915,7 +915,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.profile-form .form-group input:focus,
+.profile-form .form-group input:not([type="checkbox"]):focus,
 .profile-form .form-group select:focus {
   border-color: var(--accent);
   box-shadow: 3px 3px 0px var(--accent);
@@ -1661,6 +1661,74 @@
   transform: translate(1px, 1px);
   box-shadow: none;
 }
+
+/* Sourcing Categories Checklist */
+.sourcing-categories-group {
+  margin-top: 16px;
+  margin-bottom: 24px;
+}
+
+.sourcing-categories-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  background: var(--bg-section);
+  border: 2px solid var(--border);
+  padding: 20px;
+  border-radius: 4px;
+}
+
+.category-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.category-checkbox-input {
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid var(--border) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: var(--bg-white) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  box-shadow: 2px 2px 0px var(--border) !important;
+  transition: all 0.1s !important;
+}
+
+.category-checkbox-input:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--border) !important;
+}
+
+.category-checkbox-input:checked {
+  background: var(--accent) !important;
+  transform: none;
+  box-shadow: 1px 1px 0px var(--border) !important;
+}
+
+.category-checkbox-input:checked::after {
+  content: "✓" !important;
+  font-size: 12px !important;
+  color: var(--primary) !important;
+  display: block !important;
+  font-weight: 900 !important;
+}
+
 
 
 

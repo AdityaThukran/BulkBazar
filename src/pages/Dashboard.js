@@ -1157,17 +1157,18 @@ const Dashboard = () => {
                   </div>
 
                   {profileForm.role === 'buyer' && (
-                    <div className="form-group" style={{ marginTop: '16px', marginBottom: '16px' }}>
-                      <label style={{ display: 'block', marginBottom: '8px' }}>Sourcing Categories</label>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', background: 'var(--bg-section)', border: '2px solid var(--border)', padding: '16px', borderRadius: '4px' }}>
+                    <div className="form-group sourcing-categories-group">
+                      <label>Sourcing Categories</label>
+                      <div className="sourcing-categories-checklist">
                         {CATEGORIES.map(cat => {
                           const isChecked = profileForm.sourcing_categories
                             ? profileForm.sourcing_categories.split(',').map(c => c.trim()).includes(cat)
                             : false;
                           return (
-                            <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-primary)' }}>
+                            <label key={cat} className="category-checkbox-label">
                               <input
                                 type="checkbox"
+                                className="category-checkbox-input"
                                 value={cat}
                                 checked={isChecked}
                                 onChange={(e) => {
