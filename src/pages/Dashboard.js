@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
-  ChevronDown, ShoppingCart
+  ChevronDown, ShoppingCart, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -52,9 +52,13 @@ const Dashboard = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
 
+  // Orders state
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
   // Stats
   const [stats, setStats] = useState({
-    totalProducts: 0, totalValue: 0, lowStock: 0, activeCount: 0
+    totalProducts: 0, totalValue: 0, lowStock: 0, activeCount: 0, pendingOrders: 0
   });
 
   // Fetch products
@@ -73,12 +77,13 @@ const Dashboard = () => {
 
       // Calculate stats
       const prods = data || [];
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalProducts: prods.length,
         totalValue: prods.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0),
         lowStock: prods.filter(p => p.quantity > 0 && p.quantity <= 10).length,
         activeCount: prods.filter(p => p.status === 'active').length,
-      });
+      }));
     } catch (err) {
       console.error('Error fetching products:', err);
     } finally {
@@ -86,9 +91,46 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  // Fetch orders
+  const fetchOrders = useCallback(async () => {
+    if (!user) return;
+    setOrdersLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, products(name, unit, category)')
+        .eq('seller_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setOrders(data || []);
+      setStats(prev => ({
+        ...prev,
+        pendingOrders: (data || []).filter(o => o.status === 'pending').length
+      }));
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [user]);
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+      if (error) throw error;
+      await fetchOrders();
+    } catch (err) {
+      alert('Failed to update order: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchOrders();
+  }, [fetchProducts, fetchOrders]);
 
   useEffect(() => {
     if (profile) {
@@ -269,6 +311,16 @@ const Dashboard = () => {
             Inventory
           </button>
           <button
+            className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
+          >
+            <ClipboardList size={18} />
+            Orders
+            {stats.pendingOrders > 0 && (
+              <span className="sidebar-orders-badge">{stats.pendingOrders}</span>
+            )}
+          </button>
+          <button
             className={`sidebar-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => { setActiveTab('profile'); setSidebarOpen(false); }}
           >
@@ -297,6 +349,7 @@ const Dashboard = () => {
           <h2 className="topbar-title">
             {activeTab === 'overview' && 'Dashboard Overview'}
             {activeTab === 'inventory' && 'Inventory Management'}
+            {activeTab === 'orders' && 'Incoming Orders'}
             {activeTab === 'profile' && 'Profile Settings'}
           </h2>
           <div className="topbar-user-badge">
@@ -348,6 +401,16 @@ const Dashboard = () => {
                     <span className="stat-card-label">Active Listings</span>
                   </div>
                 </div>
+
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('orders')}>
+                  <div className="stat-card-icon" style={{ background: '#60a5fa' }}>
+                    <ClipboardList size={22} />
+                  </div>
+                  <div className="stat-card-info">
+                    <span className="stat-card-value">{stats.pendingOrders}</span>
+                    <span className="stat-card-label">Pending Orders</span>
+                  </div>
+                </div>
               </div>
 
               {/* Quick Actions */}
@@ -359,6 +422,9 @@ const Dashboard = () => {
                   </button>
                   <button className="quick-action-btn" onClick={() => setActiveTab('inventory')}>
                     <Archive size={18} /> View Inventory
+                  </button>
+                  <button className="quick-action-btn" onClick={() => { setActiveTab('orders'); fetchOrders(); }}>
+                    <ClipboardList size={18} /> View Orders
                   </button>
                   <button className="quick-action-btn" onClick={() => setActiveTab('profile')}>
                     <UserCircle size={18} /> Edit Profile
@@ -510,6 +576,77 @@ const Dashboard = () => {
                       <button className="confirm-delete-btn" onClick={() => handleDeleteProduct(deleteConfirm)}>Delete</button>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ======== ORDERS TAB ======== */}
+          {activeTab === 'orders' && (
+            <div className="orders-tab">
+              {ordersLoading ? (
+                <div className="inventory-loading">Loading orders...</div>
+              ) : orders.length === 0 ? (
+                <div className="empty-state">
+                  <ClipboardList size={40} />
+                  <p>No orders yet. Once buyers place orders on your products, they will appear here.</p>
+                </div>
+              ) : (
+                <div className="inventory-table-wrap">
+                  <table className="inventory-table">
+                    <thead>
+                      <tr>
+                        <th>Buyer</th>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Total</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Update</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map(order => (
+                        <tr key={order.id}>
+                          <td>
+                            <div className="product-name-cell">
+                              <span className="product-name">{order.buyer_name}</span>
+                              <span className="product-desc">{order.buyer_email}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="product-name-cell">
+                              <span className="product-name">{order.products?.name || '—'}</span>
+                              <span className="product-desc">{order.products?.category || ''}</span>
+                            </div>
+                          </td>
+                          <td className="price-cell">{order.quantity} {order.products?.unit || ''}</td>
+                          <td className="price-cell">{formatCurrency(order.total_price)}</td>
+                          <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                            {new Date(order.created_at).toLocaleDateString('en-IN')}
+                          </td>
+                          <td>
+                            <span className={`order-status-badge order-status-${order.status}`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td>
+                            <select
+                              className="order-status-select"
+                              value={order.status}
+                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

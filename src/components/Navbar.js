@@ -35,6 +35,7 @@ const Navbar = () => {
     { label: 'Industries', path: '/industries' },
     { label: 'Market', path: '/market' },
     { label: 'Pricing', path: '/pricing' },
+    { label: 'Marketplace', path: '/marketplace' },
     { label: 'Contact', path: '/contact' },
   ];
 
