@@ -53,6 +53,18 @@
   padding: 3px 8px;
 }
 
+.product-card-ai-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #3b82f6;
+  border-radius: 3px;
+  padding: 3px 8px;
+}
+
 .product-card-body {
   flex: 1;
 }

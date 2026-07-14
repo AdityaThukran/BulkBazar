@@ -1,12 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Tag, Package, Star } from 'lucide-react';
+import { estimateMarketability } from '../utils/aiEngine';
 import './ProductCard.css';
 
 const ProductCard = ({ product }) => {
   const discount = product.mrp && product.mrp > product.price
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : null;
+
+  const diagnosis = estimateMarketability(product);
+  const isTopValue = diagnosis.score >= 75;
 
   const formatCurrency = (val) =>
     new Intl.NumberFormat('en-IN', {
@@ -34,6 +38,9 @@ const ProductCard = ({ product }) => {
         <span className="product-card-category">
           <Tag size={10} /> {product.category}
         </span>
+        {isTopValue && (
+          <span className="product-card-ai-badge">✨ AI TOP DEAL</span>
+        )}
         {discount && (
           <span className="product-card-discount">-{discount}% OFF</span>
         )}

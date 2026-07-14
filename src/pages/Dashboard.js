@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ChatDrawer from '../components/ChatDrawer';
+import { estimateMarketability, suggestDynamicPrice, generateForecastData, generateBusinessProposal } from '../utils/aiEngine';
 import './Dashboard.css';
 
 const CATEGORIES = [
@@ -53,6 +54,12 @@ const Dashboard = () => {
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // AI Revival Systems state
+  const [selectedDiagnosisProduct, setSelectedDiagnosisProduct] = useState(null);
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [selectedForecastCategory, setSelectedForecastCategory] = useState('Textiles');
+  const [forecastData, setForecastData] = useState([]);
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -280,6 +287,17 @@ const Dashboard = () => {
 
       if (error) throw error;
 
+      // 2. Generate and insert the first AI message in the chat history
+      const pitchMsgText = generateBusinessProposal(product, buyer);
+      await supabase
+        .from('messages')
+        .insert([{
+          order_id: data.id,
+          sender_id: user.id,
+          message_text: pitchMsgText,
+          read: false
+        }]);
+
       setShowMatchModal(false);
       // Wait a brief moment to let DB propagate
       setTimeout(async () => {
@@ -372,6 +390,38 @@ const Dashboard = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // AI Revival Systems effects & handlers
+  useEffect(() => {
+    setForecastData(generateForecastData(selectedForecastCategory));
+  }, [selectedForecastCategory]);
+
+  const openDiagnosisModal = (product) => {
+    setSelectedDiagnosisProduct(product);
+    setShowDiagnosisModal(true);
+  };
+
+  const handleApplyDynamicPrice = async () => {
+    if (!selectedDiagnosisProduct) return;
+    try {
+      const suggested = suggestDynamicPrice(selectedDiagnosisProduct);
+      const { error } = await supabase
+        .from('products')
+        .update({
+          price: suggested,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedDiagnosisProduct.id);
+
+      if (error) throw error;
+
+      setShowDiagnosisModal(false);
+      setSelectedDiagnosisProduct(null);
+      await fetchProducts();
+    } catch (err) {
+      alert('Failed to apply recommended price: ' + err.message);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -654,6 +704,15 @@ const Dashboard = () => {
               Inventory
             </button>
           )}
+          {profile?.role !== 'buyer' && (
+            <button
+              className={`sidebar-nav-item ${activeTab === 'ai-insights' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('ai-insights'); setSidebarOpen(false); }}
+            >
+              <Brain size={18} />
+              AI Insights
+            </button>
+          )}
           <button
             className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
             onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
@@ -705,7 +764,8 @@ const Dashboard = () => {
           <h2 className="topbar-title">
             {activeTab === 'overview' && 'Dashboard Overview'}
             {activeTab === 'inventory' && 'Inventory Management'}
-            {activeTab === 'orders' && 'Incoming Orders'}
+            {activeTab === 'ai-insights' && 'AI Dead Stock Insights'}
+            {activeTab === 'orders' && (profile?.role === 'buyer' ? 'My Orders' : 'Incoming Orders')}
             {activeTab === 'profile' && 'Profile Settings'}
           </h2>
           <div className="topbar-user-badge">
@@ -971,6 +1031,118 @@ const Dashboard = () => {
             </div>
           )}
 
+          {/* ======== AI INSIGHTS TAB ======== */}
+          {activeTab === 'ai-insights' && (
+            <div className="ai-insights-container">
+              <div className="ai-overview-grid">
+                {/* 1. Demand Forecast Chart */}
+                <div className="ai-insights-card">
+                  <div className="chart-header">
+                    <h3>📈 AI Market Demand Forecast</h3>
+                    <select
+                      className="chart-category-select"
+                      value={selectedForecastCategory}
+                      onChange={(e) => setSelectedForecastCategory(e.target.value)}
+                    >
+                      {CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="ai-svg-chart-wrapper">
+                    <svg viewBox="0 0 400 180" width="100%" height="180px" style={{ display: 'block' }}>
+                      {/* Horizontal Grid lines */}
+                      <line x1="40" y1="30" x2="380" y2="30" className="ai-chart-grid-line" />
+                      <line x1="40" y1="85" x2="380" y2="85" className="ai-chart-grid-line" />
+                      <line x1="40" y1="140" x2="380" y2="140" className="ai-chart-grid-line" />
+
+                      {/* Chart Line Path */}
+                      {forecastData.length > 0 && (
+                        <path
+                          d={forecastData.map((d, index) => {
+                            const x = 50 + index * 100;
+                            const y = 140 - (d.demand / 100) * 110;
+                            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          }).join(' ')}
+                          className="ai-chart-line"
+                        />
+                      )}
+
+                      {/* Grid Labels */}
+                      <text x="15" y="34" className="ai-chart-axis-label">100%</text>
+                      <text x="15" y="89" className="ai-chart-axis-label">50%</text>
+                      <text x="15" y="144" className="ai-chart-axis-label">0%</text>
+
+                      {/* Week points & Tooltips */}
+                      {forecastData.map((d, index) => {
+                        const x = 50 + index * 100;
+                        const y = 140 - (d.demand / 100) * 110;
+                        return (
+                          <g key={index}>
+                            <circle cx={x} cy={y} r="5" className="ai-chart-point" />
+                            <text x={x - 18} y={y - 12} className="ai-chart-axis-label" style={{ fontWeight: 'bold' }}>
+                              {d.demand}%
+                            </text>
+                            <text x={x - 18} y="162" className="ai-chart-axis-label">
+                              {d.week}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                  <div className="form-hint" style={{ fontSize: '11px', marginTop: '-4px' }}>
+                    💡 Dynamic forecasting based on wholesale B2B search index, Near-Expiry frequency, and regional sourcing filters.
+                  </div>
+                </div>
+
+                {/* 2. Liquidation Priority List */}
+                <div className="ai-insights-card">
+                  <h3>🚨 Liquidation Priority Risk</h3>
+                  <div className="ai-risk-list">
+                    {products.length === 0 ? (
+                      <p className="no-data-msg">No active products to evaluate. Add products to run AI revival priority listing.</p>
+                    ) : (
+                      products
+                        .map(p => {
+                          const diagnosis = estimateMarketability(p);
+                          return { product: p, diagnosis };
+                        })
+                        .sort((a, b) => a.diagnosis.score - b.diagnosis.score)
+                        .slice(0, 4)
+                        .map(({ product: p, diagnosis }) => {
+                          let riskClass = 'risk-medium';
+                          let riskText = 'Moderate Risk';
+                          if (diagnosis.score < 45) {
+                            riskClass = 'risk-high';
+                            riskText = 'High Dead Risk';
+                          }
+                          return (
+                            <div key={p.id} className="ai-risk-item">
+                              <div className="ai-risk-item-info">
+                                <span className="ai-risk-item-name">{p.name}</span>
+                                <span className="ai-risk-item-meta">Score: {diagnosis.score}% · {p.category}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span className={`ai-risk-badge ${riskClass}`}>{riskText}</span>
+                                <button
+                                  className="chat-trigger-btn"
+                                  style={{ padding: '4px 8px', fontSize: '10px' }}
+                                  onClick={() => openDiagnosisModal(p)}
+                                >
+                                  Diagnose
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ======== INVENTORY TAB ======== */}
           {activeTab === 'inventory' && (
             <div className="inventory-tab">
@@ -1026,6 +1198,7 @@ const Dashboard = () => {
                         <th>Price</th>
                         <th>MRP</th>
                         <th>Condition</th>
+                        <th>AI Score</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -1050,6 +1223,20 @@ const Dashboard = () => {
                           <td className="price-cell">{formatCurrency(product.price)}</td>
                           <td className="price-cell">{product.mrp ? formatCurrency(product.mrp) : '—'}</td>
                           <td><span className={`condition-badge condition-${product.condition}`}>{product.condition}</span></td>
+                          <td>
+                            {(() => {
+                              const diagnosis = estimateMarketability(product);
+                              return (
+                                <span
+                                  className={`ai-marketability-badge level-${diagnosis.level.toLowerCase()}`}
+                                  onClick={() => openDiagnosisModal(product)}
+                                  title="Click to view AI Optimization report"
+                                >
+                                  ✨ {diagnosis.score}%
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td>
                             <span className={`status-badge status-${product.status}`}>
                               {product.status}
@@ -1481,6 +1668,87 @@ const Dashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======== AI DIAGNOSIS MODAL ======== */}
+      {showDiagnosisModal && selectedDiagnosisProduct && (
+        <div className="modal-overlay" onClick={() => { setShowDiagnosisModal(false); setSelectedDiagnosisProduct(null); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3>✨ AI Dead Stock Diagnosis</h3>
+              <button className="modal-close" onClick={() => { setShowDiagnosisModal(false); setSelectedDiagnosisProduct(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '20px 24px 24px' }}>
+              {(() => {
+                const diagnosis = estimateMarketability(selectedDiagnosisProduct);
+                const suggestedPrice = suggestDynamicPrice(selectedDiagnosisProduct);
+                let scoreColor = '#dc2626';
+                if (diagnosis.score >= 80) scoreColor = '#059669';
+                else if (diagnosis.score >= 45) scoreColor = '#d97706';
+
+                return (
+                  <div className="ai-diagnosis-layout">
+                    {/* Score Circle & description */}
+                    <div className="ai-diagnosis-score-section">
+                      <div className="ai-diagnosis-score-circle" style={{ borderColor: scoreColor, color: scoreColor }}>
+                        {diagnosis.score}%
+                      </div>
+                      <div className="ai-diagnosis-title-wrapper">
+                        <span className="ai-diagnosis-score-title" style={{ color: scoreColor }}>
+                          {diagnosis.level} Revival Score
+                        </span>
+                        <span className="ai-diagnosis-score-desc">
+                          Based on pricing reselling index, image visibility, and category buyer matches.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Price suggestions */}
+                    <div className="ai-diagnosis-section-title">Dynamic Pricing Recommendation</div>
+                    <div className="ai-dynamic-pricing-box">
+                      <div className="ai-pricing-label-group">
+                        <span className="ai-pricing-label">Optimized Resale Price</span>
+                        <span className="ai-pricing-sub">Suggested to attract matching buyers</span>
+                      </div>
+                      <div className="ai-pricing-value-group">
+                        <span className="ai-pricing-value">{formatCurrency(suggestedPrice)}</span>
+                        {Number(selectedDiagnosisProduct.price) !== suggestedPrice && (
+                          <button
+                            type="button"
+                            className="ai-pricing-apply-btn"
+                            onClick={handleApplyDynamicPrice}
+                          >
+                            Apply Dynamic Price
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Optimization Tips */}
+                    <div className="ai-diagnosis-section-title">Revival Recommendations</div>
+                    {diagnosis.tips.length === 0 ? (
+                      <p style={{ fontSize: '13px', margin: 0, color: 'var(--text-secondary)' }}>
+                        🎉 Your listing is fully optimized for reselling! Keep it active to wait for buyers.
+                      </p>
+                    ) : (
+                      <ul className="ai-tips-list">
+                        {diagnosis.tips.map((tip, index) => (
+                          <li key={index}>
+                            <span className="ai-tips-bullet">·</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
       )}

@@ -1963,6 +1963,347 @@
   box-shadow: none;
 }
 
+/* ============================================================
+   AI DEAD STOCK REVIVAL SYSTEMS STYLING
+   ============================================================ */
+
+/* AI Score Badges in Tables */
+.ai-marketability-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.ai-marketability-badge.level-high {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #059669;
+}
+
+.ai-marketability-badge.level-medium {
+  background: #fef8e6;
+  color: #d97706;
+  border-color: #d97706;
+}
+
+.ai-marketability-badge.level-low {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.ai-marketability-badge:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0px var(--border);
+}
+
+/* AI Insights Layout */
+.ai-insights-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ai-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .ai-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* AI Cards & Charts */
+.ai-insights-card {
+  background: var(--bg-white);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 4px 4px 0px var(--border);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-insights-card h3 {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-category-select {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-base);
+  outline: none;
+}
+
+/* SVG Chart Rendering */
+.ai-svg-chart-wrapper {
+  background: var(--bg-section);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  position: relative;
+}
+
+.ai-chart-axis-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+
+.ai-chart-grid-line {
+  stroke: rgba(18, 18, 18, 0.05);
+  stroke-dasharray: 4;
+}
+
+.ai-chart-line {
+  stroke: var(--accent-dark);
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.ai-chart-point {
+  fill: var(--accent);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+/* AI Liquidation Risk Item list */
+.ai-risk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-risk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-section);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+}
+
+.ai-risk-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-risk-item-name {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ai-risk-item-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-risk-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+}
+
+.ai-risk-badge.risk-high {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.ai-risk-badge.risk-medium {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #d97706;
+}
+
+/* AI Diagnosis Modal Layout */
+.ai-diagnosis-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-diagnosis-score-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-section);
+  padding: 16px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+}
+
+.ai-diagnosis-score-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.ai-diagnosis-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-diagnosis-score-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.ai-diagnosis-score-desc {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* AI Tips & Suggestions */
+.ai-diagnosis-section-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--bg-section);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.ai-dynamic-pricing-box {
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-pricing-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-pricing-label {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.ai-pricing-sub {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: #1d4ed8;
+}
+
+.ai-pricing-value-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ai-pricing-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.ai-pricing-apply-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #3b82f6;
+  background: white;
+  border: 1.5px solid #3b82f6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.ai-pricing-apply-btn:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.ai-tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-tips-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.ai-tips-bullet {
+  color: var(--accent-dark);
+  font-weight: bold;
+}
+
+
 
 
 
