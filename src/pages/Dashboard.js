@@ -57,6 +57,7 @@ const Dashboard = () => {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [activeChatOrder, setActiveChatOrder] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState({});
 
   // Stats
   const [stats, setStats] = useState({
@@ -224,6 +225,48 @@ const Dashboard = () => {
     fetchProducts();
     fetchOrders();
   }, [fetchProducts, fetchOrders, profile]);
+
+  // Realtime unread messages count listener
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnreadCounts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('order_id')
+          .neq('sender_id', user.id)
+          .eq('read', false);
+
+        if (error) throw error;
+
+        const counts = {};
+        (data || []).forEach(m => {
+          counts[m.order_id] = (counts[m.order_id] || 0) + 1;
+        });
+        setUnreadMessages(counts);
+      } catch (err) {
+        console.error('Error fetching unread counts:', err);
+      }
+    };
+
+    fetchUnreadCounts();
+
+    const channel = supabase
+      .channel('messages-unread-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        () => {
+          fetchUnreadCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (profile) {
@@ -418,7 +461,13 @@ const Dashboard = () => {
             onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
           >
             <ClipboardList size={18} />
-            {profile?.role === 'buyer' ? 'My Orders' : 'Orders'}
+            <span style={{ flex: 1 }}>{profile?.role === 'buyer' ? 'My Orders' : 'Orders'}</span>
+            {Object.values(unreadMessages).reduce((a, b) => a + b, 0) > 0 && (
+              <span className="sidebar-orders-badge" style={{ background: 'var(--accent)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <MessageSquare size={10} />
+                {Object.values(unreadMessages).reduce((a, b) => a + b, 0)}
+              </span>
+            )}
             {profile?.role !== 'buyer' && stats.pendingOrders > 0 && (
               <span className="sidebar-orders-badge">{stats.pendingOrders}</span>
             )}
@@ -896,11 +945,16 @@ const Dashboard = () => {
                           </td>
                           <td>
                             <button
-                              className="chat-trigger-btn"
+                              className={`chat-trigger-btn ${unreadMessages[order.id] ? 'has-unread' : ''}`}
                               title="Open Chat"
                               onClick={() => setActiveChatOrder(order)}
                             >
                               <MessageSquare size={14} /> Chat
+                              {unreadMessages[order.id] > 0 && (
+                                <span className="chat-btn-badge">
+                                  {unreadMessages[order.id]}
+                                </span>
+                              )}
                             </button>
                           </td>
                           {profile?.role !== 'buyer' && (

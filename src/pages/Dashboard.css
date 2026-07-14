@@ -1450,4 +1450,28 @@
   box-shadow: none;
 }
 
+.chat-trigger-btn.has-unread {
+  border-color: #ef4444;
+  box-shadow: 2px 2px 0px #ef4444;
+}
+
+.chat-trigger-btn.has-unread:hover {
+  box-shadow: 3px 3px 0px #ef4444;
+}
+
+.chat-btn-badge {
+  background: #ef4444;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+  margin-left: 2px;
+  border: 1px solid var(--border);
+}
+
+
 

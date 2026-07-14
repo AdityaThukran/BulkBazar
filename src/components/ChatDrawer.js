@@ -10,7 +10,21 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !currentUser) return;
+
+    // Mark messages as read
+    const markAsRead = async () => {
+      try {
+        await supabase
+          .from('messages')
+          .update({ read: true })
+          .eq('order_id', orderId)
+          .neq('sender_id', currentUser.id)
+          .eq('read', false);
+      } catch (err) {
+        console.error('Error marking messages as read:', err);
+      }
+    };
 
     // Fetch initial chat history
     const fetchChatHistory = async () => {
@@ -24,6 +38,7 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
 
         if (error) throw error;
         setMessages(data || []);
+        await markAsRead();
       } catch (err) {
         console.error('Error fetching chat history:', err);
       } finally {
@@ -50,6 +65,10 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
             if (prev.some(m => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
+          // Mark as read if received from other party
+          if (payload.new.sender_id !== currentUser.id) {
+            markAsRead();
+          }
         }
       )
       .subscribe();
@@ -57,7 +76,7 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId]);
+  }, [orderId, currentUser]);
 
   // Scroll to bottom helper
   useEffect(() => {
