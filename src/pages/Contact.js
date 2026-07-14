@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Send, CheckCircle2, ArrowRight, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, Phone, MapPin, Send, CheckCircle2, ArrowRight, Zap, LayoutDashboard } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import './Contact.css';
 
 const Contact = () => {
+  const { user, profile } = useAuth();
   const [form, setForm] = useState({ name: '', email: '', company: '', role: 'seller', phone: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setForm(prev => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        email: user?.email || prev.email,
+        company: profile.company || prev.company,
+        role: profile.role || prev.role,
+        phone: profile.phone || prev.phone
+      }));
+    }
+  }, [profile, user]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -86,7 +102,20 @@ const Contact = () => {
             </div>
 
             <div className="contact-form-wrap">
-              {!submitted ? (
+              {user ? (
+                <div className="contact-form card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', padding: '40px 24px' }}>
+                  <div className="success-icon" style={{ background: 'var(--accent)', width: '64px', height: '64px', borderRadius: '6px', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', margin: '0 auto', boxShadow: '3px 3px 0px var(--border)' }}>
+                    <LayoutDashboard size={32} />
+                  </div>
+                  <h3 className="form-title" style={{ margin: 0 }}>You are logged in</h3>
+                  <p className="form-subtitle" style={{ margin: 0 }}>
+                    Welcome back, <strong>{profile?.full_name || 'User'}</strong>! You can now manage your dead stock inventory and view stats directly from your dashboard.
+                  </p>
+                  <Link to="/dashboard" className="btn-primary" style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                    Go to Dashboard <ArrowRight size={16} />
+                  </Link>
+                </div>
+              ) : !submitted ? (
                 <form className="contact-form card" onSubmit={handleSubmit}>
                   <h3 className="form-title">Get Early Access</h3>
                   <p className="form-subtitle">Join the waitlist and be among the first to use Bulk Bazaar.</p>

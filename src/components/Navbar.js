@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShoppingCart } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, ShoppingCart, LayoutDashboard, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, profile, signOut } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -17,6 +20,15 @@ const Navbar = () => {
   useEffect(() => {
     setIsOpen(false);
   }, [location]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   const navLinks = [
     { label: 'How It Works', path: '/how-it-works' },
@@ -51,13 +63,30 @@ const Navbar = () => {
         </div>
 
         <div className="navbar-actions">
-          <Link to="/contact" className="btn-secondary nav-btn-login" style={{ padding: '9px 18px', fontSize: '14px' }}>
-            Log In
-          </Link>
-          <Link to="/contact" className="btn-nav-cta" style={{ padding: '9px 22px', fontSize: '14px' }}>
-            <span className="nav-cta-icon"><ShoppingCart size={14} /></span>
-            Get Started
-          </Link>
+          {user ? (
+            <>
+              <Link to="/dashboard" className="nav-user-badge">
+                <span className="nav-user-avatar">
+                  {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
+                <span className="nav-user-name">{profile?.full_name?.split(' ')[0] || 'Dashboard'}</span>
+              </Link>
+              <Link to="/dashboard" className="btn-nav-cta" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                <LayoutDashboard size={14} />
+                Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="btn-secondary nav-btn-login" style={{ padding: '9px 18px', fontSize: '14px' }}>
+                Log In
+              </Link>
+              <Link to="/signup" className="btn-nav-cta" style={{ padding: '9px 22px', fontSize: '14px' }}>
+                <span className="nav-cta-icon"><ShoppingCart size={14} /></span>
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
 
         <button className="nav-toggle" onClick={() => setIsOpen(!isOpen)}>
@@ -77,12 +106,29 @@ const Navbar = () => {
             </Link>
           ))}
           <div className="mobile-actions">
-            <Link to="/contact" className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-              Log In
-            </Link>
-            <Link to="/contact" className="btn-nav-cta" style={{ width: '100%', justifyContent: 'center' }}>
-              <span className="nav-cta-icon"><ShoppingCart size={14} /></span> Get Started Free
-            </Link>
+            {user ? (
+              <>
+                <Link to="/dashboard" className="btn-nav-cta" style={{ width: '100%', justifyContent: 'center' }}>
+                  <LayoutDashboard size={14} /> Dashboard
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <LogOut size={14} /> Log Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                  Log In
+                </Link>
+                <Link to="/signup" className="btn-nav-cta" style={{ width: '100%', justifyContent: 'center' }}>
+                  <span className="nav-cta-icon"><ShoppingCart size={14} /></span> Get Started Free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -240,6 +240,46 @@
   border-top: 2px solid var(--border);
 }
 
+/* ── Logged-in user badge ── */
+.nav-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  padding: 6px 12px 6px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-white);
+  transition: var(--transition);
+}
+
+.nav-user-badge:hover {
+  box-shadow: 3px 3px 0px var(--border);
+  transform: translate(-1px, -1px);
+}
+
+.nav-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--accent);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.nav-user-name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .navbar-links, .navbar-actions { display: none; }
