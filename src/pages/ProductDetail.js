@@ -245,6 +245,17 @@ const ProductDetail = () => {
                   Go to Dashboard
                 </Link>
               </div>
+            ) : profile?.role === 'seller' ? (
+              <div className="order-form-card own-listing-card">
+                <div className="own-listing-icon">
+                  <AlertTriangle size={28} color="var(--yellow)" />
+                </div>
+                <h3>Seller Account</h3>
+                <p>Only Buyer accounts can place orders. Please register or log in with a Buyer account to purchase listings.</p>
+                <Link to="/dashboard" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', justifyContent: 'center' }}>
+                  Go to Dashboard
+                </Link>
+              </div>
             ) : (
               <div className="order-form-card">
                 <div className="order-form-header">
@@ -306,7 +317,7 @@ const ProductDetail = () => {
                   <button
                     type="submit"
                     className="place-order-btn"
-                    disabled={orderLoading || !user || product.quantity === 0}
+                    disabled={orderLoading || !user || product.quantity === 0 || profile?.role === 'seller'}
                   >
                     <ShoppingCart size={16} />
                     {orderLoading ? 'Placing Order...' : product.quantity === 0 ? 'Out of Stock' : 'Place Order'}
