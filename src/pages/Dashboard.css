@@ -1421,3 +1421,33 @@
   }
 }
 
+.chat-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-white);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.chat-trigger-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 3px 3px 0px var(--border);
+  background: var(--accent);
+  color: var(--primary);
+}
+
+.chat-trigger-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+

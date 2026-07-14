@@ -3,10 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
-  ChevronDown, ShoppingCart, ClipboardList, Store
+  ChevronDown, ShoppingCart, ClipboardList, Store, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import ChatDrawer from '../components/ChatDrawer';
 import './Dashboard.css';
 
 const CATEGORIES = [
@@ -55,6 +56,7 @@ const Dashboard = () => {
   // Orders state
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [activeChatOrder, setActiveChatOrder] = useState(null);
 
   // Stats
   const [stats, setStats] = useState({
@@ -855,6 +857,7 @@ const Dashboard = () => {
                         <th>Total</th>
                         <th>Date</th>
                         <th>Status</th>
+                        <th>Chat</th>
                         {profile?.role !== 'buyer' && <th>Update</th>}
                       </tr>
                     </thead>
@@ -890,6 +893,15 @@ const Dashboard = () => {
                             <span className={`order-status-badge order-status-${order.status}`}>
                               {order.status}
                             </span>
+                          </td>
+                          <td>
+                            <button
+                              className="chat-trigger-btn"
+                              title="Open Chat"
+                              onClick={() => setActiveChatOrder(order)}
+                            >
+                              <MessageSquare size={14} /> Chat
+                            </button>
                           </td>
                           {profile?.role !== 'buyer' && (
                             <td>
@@ -1121,6 +1133,22 @@ const Dashboard = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ======== CHAT DRAWER ======== */}
+      {activeChatOrder && (
+        <ChatDrawer
+          orderId={activeChatOrder.id}
+          isOpen={!!activeChatOrder}
+          onClose={() => setActiveChatOrder(null)}
+          currentUser={user}
+          otherPartyName={
+            profile?.role === 'buyer'
+              ? (activeChatOrder.products?.profiles?.full_name || 'Seller')
+              : (activeChatOrder.buyer_name || 'Buyer')
+          }
+          orderTitle={activeChatOrder.products?.name || 'Order Item'}
+        />
       )}
     </div>
   );
