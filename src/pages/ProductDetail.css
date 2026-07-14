@@ -164,6 +164,69 @@
   gap: 4px;
 }
 
+/* AI Deal Assessment Card */
+.product-detail-ai-assessment {
+  background: var(--bg-section);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 24px;
+  box-shadow: 3px 3px 0px var(--border);
+}
+
+.ai-assessment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-assessment-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ai-assessment-score-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+}
+
+.ai-assessment-score-pill.score-high {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #059669;
+}
+
+.ai-assessment-score-pill.score-medium {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #d97706;
+}
+
+.ai-assessment-score-pill.score-low {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.ai-assessment-text {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .product-detail-mrp {
   font-family: var(--font-mono);
   font-size: 14px;

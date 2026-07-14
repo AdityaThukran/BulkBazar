@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { estimateMarketability } from '../utils/aiEngine';
 import './ProductDetail.css';
 
 const ProductDetail = () => {
@@ -169,6 +170,27 @@ const ProductDetail = () => {
                   <span className="product-detail-unit">per {product.unit}</span>
                 </div>
               </div>
+
+              {(() => {
+                const diagnosis = estimateMarketability(product);
+                return (
+                  <div className="product-detail-ai-assessment">
+                    <div className="ai-assessment-header">
+                      <span className="ai-assessment-title">✨ AI Deal Assessment</span>
+                      <span className={`ai-assessment-score-pill score-${diagnosis.level.toLowerCase()}`}>
+                        Value Score: {diagnosis.score}%
+                      </span>
+                    </div>
+                    <p className="ai-assessment-text">
+                      {diagnosis.score >= 75
+                        ? `🔥 Exceptional Deal: This stock is priced at a major discount in ${product.condition} condition. High procurement recommendation.`
+                        : diagnosis.score >= 45
+                        ? `✅ Fair B2B Value: Good pricing relative to the item's ${product.condition} condition and category resale demand.`
+                        : `⚠️ High Depreciation: Consider negotiating the price further using the live chat drawer.`}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="product-detail-stats">
                 <div className="product-stat">
