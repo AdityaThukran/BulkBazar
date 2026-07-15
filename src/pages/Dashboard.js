@@ -193,8 +193,9 @@ const Dashboard = () => {
     if (!user || !profile) return;
     
     const newNotificationsToInsert = [];
+    // Unified dedup key: productId_type_subtype (all keys must use this exact format)
     const notificationSet = new Set(
-      existingNotifications.map(n => `${n.product_id || 'no_prod'}_${n.type}`)
+      existingNotifications.map(n => n.dedup_key || `${n.product_id || 'no_prod'}_${n.type}`)
     );
 
     if (profile.role === 'seller') {
@@ -224,9 +225,12 @@ const Dashboard = () => {
             }
           }
 
-          // 2. AI Market Advice Check
+          // 2. AI Market Advice Check — only once per product per day (24h cooldown via localStorage)
+          const aiCooldownKey = `notif_ai_${product.id}`;
+          const lastAiTime = parseInt(localStorage.getItem(aiCooldownKey) || '0', 10);
+          const hoursSinceLastAi = (Date.now() - lastAiTime) / (1000 * 60 * 60);
           const keyAi = `${product.id}_ai`;
-          if (!notificationSet.has(keyAi)) {
+          if (!notificationSet.has(keyAi) && hoursSinceLastAi > 24) {
             try {
               const suggestion = await generateMarketRateSuggestion(product);
               newNotificationsToInsert.push({
@@ -238,6 +242,7 @@ const Dashboard = () => {
                 read: false
               });
               notificationSet.add(keyAi);
+              localStorage.setItem(aiCooldownKey, Date.now().toString());
             } catch (err) {
               console.error('Failed to generate market rate suggestion:', err);
             }
@@ -298,7 +303,7 @@ const Dashboard = () => {
         }
       }
       
-      // 2. Order Status Update Notifications
+      // 2. Order Status Update Notifications — dedup key matches what is stored in notificationSet
       const { data: buyerOrders, error: orderErr } = await supabase
         .from('orders')
         .select('*, products(name)')
@@ -306,15 +311,17 @@ const Dashboard = () => {
       
       if (!orderErr && buyerOrders) {
         for (const order of buyerOrders) {
+          // Key format: productId_success_status — must match the dedup_key stored in DB
           const key = `${order.product_id || 'no_prod'}_success_${order.status}`;
           if (order.status !== 'pending' && !notificationSet.has(key)) {
             newNotificationsToInsert.push({
               user_id: user.id,
               product_id: order.product_id,
               title: `📦 Order ${order.status.toUpperCase()}`,
-              message: `Your order for "${order.products?.name || 'Item'}" has been marked as ${order.status} by the seller.`,
+              message: `Your order for "${order.products?.name || 'Item'}" (${order.quantity} units) has been marked as ${order.status} by the seller.`,
               type: 'success',
-              read: false
+              read: false,
+              dedup_key: key
             });
             notificationSet.add(key);
           }
@@ -440,27 +447,30 @@ const Dashboard = () => {
 
   const markNotificationAsRead = async (id) => {
     try {
+      // DELETE permanently so it never re-appears after refresh
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .delete()
         .eq('id', id);
       if (error) throw error;
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      setNotifications(prev => prev.filter(n => n.id !== id));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Error marking notification as read:', err);
+      console.error('Error dismissing notification:', err);
     }
   };
 
   const markAllNotificationsAsRead = async () => {
     if (!user) return;
     try {
+      // DELETE all notifications permanently so sync doesn't recreate them on next reload
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .delete()
         .eq('user_id', user.id);
       if (error) throw error;
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      // Also clear all AI suggestion cooldowns so they can re-trigger after 24h
+      setNotifications([]);
       setUnreadCount(0);
     } catch (err) {
       console.error('Error clearing notifications:', err);
@@ -1232,12 +1242,12 @@ const Dashboard = () => {
                   </div>
 
                   <div className="dropdown-list" style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
-                    {notifications.filter(n => !n.read).length === 0 ? (
+                    {notifications.length === 0 ? (
                       <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
                         No alerts or suggestions yet.
                       </div>
                     ) : (
-                      notifications.filter(n => !n.read).map(notif => {
+                      notifications.map(notif => {
                         let icon = '🔔';
                         let cardStyle = {
                           padding: '10px',
