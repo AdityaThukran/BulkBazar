@@ -385,21 +385,23 @@ const Dashboard = () => {
         }
       }
 
-      // Calculate stats
-      const prods = data || [];
-      setStats(prev => ({
-        ...prev,
-        totalProducts: prods.length,
-        totalValue: prods.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0),
-        lowStock: prods.filter(p => p.quantity > 0 && p.quantity <= 10).length,
-        activeCount: prods.filter(p => p.status === 'active').length,
-      }));
+      // Calculate stats (only if user is a seller)
+      if (profile?.role !== 'buyer') {
+        const prods = data || [];
+        setStats(prev => ({
+          ...prev,
+          totalProducts: prods.length,
+          totalValue: prods.reduce((sum, p) => sum + (Number(p.price) * p.quantity), 0),
+          lowStock: prods.filter(p => p.quantity > 0 && p.quantity <= 10).length,
+          activeCount: prods.filter(p => p.status === 'active').length,
+        }));
+      }
     } catch (err) {
       console.error('Error fetching products:', err);
     } finally {
       setProductsLoading(false);
     }
-  }, [user, fetchAIMatches, syncNotifications]);
+  }, [user, profile, fetchAIMatches, syncNotifications]);
 
   // Fetch orders
   const fetchOrders = useCallback(async () => {
