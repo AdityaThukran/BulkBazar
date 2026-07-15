@@ -611,6 +611,45 @@ const Dashboard = () => {
     return counts;
   };
 
+  const getWeeklyRecoveryData = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const recoveryByDay = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 };
+    
+    orders.forEach(o => {
+      const date = new Date(o.created_at);
+      const dayName = days[date.getDay()];
+      if (recoveryByDay[dayName] !== undefined) {
+        recoveryByDay[dayName] += Number(o.total_price);
+      }
+    });
+
+    const maxVal = Math.max(...Object.values(recoveryByDay)) || 1;
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map(day => ({
+      day,
+      value: Math.max(10, Math.round((recoveryByDay[day] / maxVal) * 100)),
+      valText: formatCurrency(recoveryByDay[day])
+    }));
+  };
+
+  const getRecentAIMatches = () => {
+    if (!aiMatches || aiMatches.length === 0) {
+      return [
+        { title: 'No active AI matches found yet.', pct: 0, color: 'var(--border)' }
+      ];
+    }
+    return aiMatches.slice(0, 3).map(m => {
+      const name = m.product?.name || 'Bulk Lot';
+      const category = m.category;
+      const matchCount = m.count;
+      const score = estimateMarketability(m.product, orders.filter(o => o.product_id === m.product.id)).score;
+      return {
+        title: `✨ ${category}: "${name}" ➔ ${matchCount} matching buyers`,
+        pct: score,
+        color: 'var(--accent)'
+      };
+    });
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchOrders();
@@ -1327,8 +1366,10 @@ const Dashboard = () => {
                       {/* 1. Dead Stock */}
                       <div className="intel-stat-card">
                         <span className="intel-card-label">DEAD STOCK</span>
-                        <span className="intel-card-value">₹42.8L</span>
-                        <span className="intel-card-sub">+127 items</span>
+                        <span className="intel-card-value">
+                          {formatCurrency(stats.totalValue || 0)}
+                        </span>
+                        <span className="intel-card-sub">+{stats.totalProducts || 0} active items</span>
                       </div>
 
                       {/* 2. Matched Buyers */}
@@ -1338,10 +1379,12 @@ const Dashboard = () => {
                           {(() => {
                             let totalCount = 0;
                             aiMatches.forEach(m => totalCount += m.count);
-                            return totalCount > 0 ? totalCount : '89';
+                            return totalCount > 0 ? totalCount : '0';
                           })()}
                         </span>
-                        <span className="intel-card-sub text-green">+23 new</span>
+                        <span className="intel-card-sub text-green">
+                          +{aiMatches.length} matching categories
+                        </span>
                       </div>
 
                       {/* 3. Revenue */}
@@ -1349,12 +1392,11 @@ const Dashboard = () => {
                         <span className="intel-card-label">REVENUE</span>
                         <span className="intel-card-value">
                           {(() => {
-                            const deliveredOrders = orders.filter(o => o.status === 'delivered');
-                            const calculated = deliveredOrders.reduce((sum, o) => sum + Number(o.total_price), 0);
-                            return calculated > 0 ? formatCurrency(calculated) : '₹18.2L';
+                            const calculated = orders.reduce((sum, o) => sum + Number(o.total_price), 0);
+                            return formatCurrency(calculated || 0);
                           })()}
                         </span>
-                        <span className="intel-card-sub text-green">+42%</span>
+                        <span className="intel-card-sub text-green">from {orders.length} orders</span>
                       </div>
                     </div>
 
@@ -1362,13 +1404,7 @@ const Dashboard = () => {
                     <div className="weekly-recovery-section">
                       <h4 className="intel-section-title">Weekly Recovery</h4>
                       <div className="weekly-recovery-chart">
-                        {[
-                          { day: 'Mon', value: 80, valText: '₹4.2L' },
-                          { day: 'Tue', value: 45, valText: '₹2.1L' },
-                          { day: 'Wed', value: 95, valText: '₹6.8L' },
-                          { day: 'Thu', value: 30, valText: '₹1.5L' },
-                          { day: 'Fri', value: 70, valText: '₹3.6L' }
-                        ].map(d => (
+                        {getWeeklyRecoveryData().map(d => (
                           <div key={d.day} className="weekly-bar-row">
                             <span className="weekly-day-lbl">{d.day}</span>
                             <div className="weekly-bar-outer">
@@ -1384,15 +1420,11 @@ const Dashboard = () => {
                     <div className="recent-ai-matches-section">
                       <h4 className="intel-section-title">Recent AI Matches</h4>
                       <div className="ai-matches-progress-list">
-                        {[
-                          { title: '🚗 Spare parts (Auto) → 12 repair shops', pct: 94, color: 'var(--accent)' },
-                          { title: '👚 Cotton fabric surplus → 8 garment units', pct: 87, color: 'var(--accent)' },
-                          { title: '📱 Electronics bulk clearance → 5 repair labs', pct: 72, color: 'var(--accent)' }
-                        ].map((m, idx) => (
+                        {getRecentAIMatches().map((m, idx) => (
                           <div key={idx} className="ai-match-progress-row">
                             <div className="ai-match-progress-info">
                               <span className="ai-match-progress-title">{m.title}</span>
-                              <span className="ai-match-progress-pct">{m.pct}%</span>
+                              <span className="ai-match-progress-pct">{m.pct}% score</span>
                             </div>
                             <div className="ai-match-progress-bar-outer">
                               <div
@@ -1408,28 +1440,48 @@ const Dashboard = () => {
 
                   {/* Floating Achievement Widgets Overlay Grid */}
                   <div className="floating-achievement-widgets">
-                    <div className="achievement-widget widget-orange" onClick={() => setActiveTab('ai-insights')}>
-                      <div className="widget-icon">💡</div>
-                      <div className="widget-info">
-                        <span className="widget-title">AI Match Found!</span>
-                        <span className="widget-desc">Spare parts &rarr; 12 repair shops</span>
+                    {aiMatches && aiMatches.length > 0 ? (
+                      (() => {
+                        const firstMatch = aiMatches[0];
+                        return (
+                          <div className="achievement-widget widget-orange" onClick={() => setActiveTab('ai-insights')}>
+                            <div className="widget-icon">💡</div>
+                            <div className="widget-info">
+                              <span className="widget-title">AI Match Found!</span>
+                              <span className="widget-desc">
+                                {firstMatch.product?.name?.substring(0, 20)}... &rarr; {firstMatch.count} buyers
+                              </span>
+                            </div>
+                            <span className="widget-badge">NEW</span>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="achievement-widget widget-orange" onClick={() => setActiveTab('inventory')}>
+                        <div className="widget-icon">📦</div>
+                        <div className="widget-info">
+                          <span className="widget-title">Listings Status</span>
+                          <span className="widget-desc">AI Monitoring active</span>
+                        </div>
+                        <span className="widget-badge">OK</span>
                       </div>
-                      <span className="widget-badge">NEW</span>
-                    </div>
+                    )}
 
                     <div className="achievement-widget widget-yellow" onClick={() => setActiveTab('ai-insights')}>
                       <div className="widget-icon">📈</div>
                       <div className="widget-info">
-                        <span className="widget-title">Price Optimized</span>
-                        <span className="widget-desc">Save 32% vs market rate</span>
+                        <span className="widget-title">Price Engine</span>
+                        <span className="widget-desc">Automated clearance curves</span>
                       </div>
                     </div>
 
                     <div className="achievement-widget widget-purple" onClick={() => setActiveTab('orders')}>
                       <div className="widget-icon">🎉</div>
                       <div className="widget-info">
-                        <span className="widget-title">Deal Closed</span>
-                        <span className="widget-desc">₹4.2L recovered</span>
+                        <span className="widget-title">Total Orders</span>
+                        <span className="widget-desc">
+                          {orders.filter(o => o.status === 'delivered').length} delivered deals
+                        </span>
                       </div>
                     </div>
                   </div>
