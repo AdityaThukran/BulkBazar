@@ -202,11 +202,13 @@ const Dashboard = () => {
       // ================= SELLER NOTIFICATIONS =================
       if (currentProducts && currentProducts.length > 0) {
         for (const product of currentProducts) {
-          // 1. Expiry Check
-          if (product.expiry_date && (product.category === 'FMCG' || product.category === 'Pharma')) {
+          if (newNotificationsToInsert.length >= 3) break; // Strict cap of 3 per sync
+
+          // 1. Expiry Check (only if product is in stock and expiring within 30 days)
+          if (product.quantity > 0 && product.expiry_date && (product.category === 'FMCG' || product.category === 'Pharma')) {
             const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
             
-            if (daysToExpiry <= 45) {
+            if (daysToExpiry <= 30) {
               const key = `${product.id}_warning`;
               if (!notificationSet.has(key)) {
                 const isExpired = daysToExpiry <= 0;
@@ -216,35 +218,40 @@ const Dashboard = () => {
                   title: isExpired ? `🚨 Expired: ${product.name}` : `⏰ Expiring Soon: ${product.name}`,
                   message: isExpired
                     ? `This lot has expired (${Math.abs(daysToExpiry)} days ago). Click here to apply AI salvage clearance pricing.`
-                    : `This lot expires in ${daysToExpiry} days (${new Date(product.expiry_date).toLocaleDateString('en-IN')}). Click to see AI Expiry Alarm.`,
+                    : `This lot expires in ${daysToExpiry} days. Click to see AI Expiry Alarm.`,
                   type: 'warning',
-                  read: false
+                  read: false,
+                  dedup_key: key
                 });
                 notificationSet.add(key);
               }
             }
           }
 
-          // 2. AI Market Advice Check — only once per product per day (24h cooldown via localStorage)
-          const aiCooldownKey = `notif_ai_${product.id}`;
-          const lastAiTime = parseInt(localStorage.getItem(aiCooldownKey) || '0', 10);
-          const hoursSinceLastAi = (Date.now() - lastAiTime) / (1000 * 60 * 60);
-          const keyAi = `${product.id}_ai`;
-          if (!notificationSet.has(keyAi) && hoursSinceLastAi > 24) {
-            try {
-              const suggestion = await generateMarketRateSuggestion(product);
-              newNotificationsToInsert.push({
-                user_id: user.id,
-                product_id: product.id,
-                title: suggestion.title || `💡 AI Pricing Strategy`,
-                message: suggestion.message || `Optimize pricing for ${product.name} to attract active buyers.`,
-                type: 'ai',
-                read: false
-              });
-              notificationSet.add(keyAi);
-              localStorage.setItem(aiCooldownKey, Date.now().toString());
-            } catch (err) {
-              console.error('Failed to generate market rate suggestion:', err);
+          // 2. AI Market Advice Check — only for DEAD stock (marketability score < 70) in warehouse
+          const diagnosis = estimateMarketability(product, []);
+          if (product.quantity > 0 && diagnosis.score < 70) {
+            const aiCooldownKey = `notif_ai_${product.id}`;
+            const lastAiTime = parseInt(localStorage.getItem(aiCooldownKey) || '0', 10);
+            const hoursSinceLastAi = (Date.now() - lastAiTime) / (1000 * 60 * 60);
+            const keyAi = `${product.id}_ai`;
+            if (!notificationSet.has(keyAi) && hoursSinceLastAi > 24) {
+              try {
+                const suggestion = await generateMarketRateSuggestion(product);
+                newNotificationsToInsert.push({
+                  user_id: user.id,
+                  product_id: product.id,
+                  title: suggestion.title || `💡 AI Pricing Strategy`,
+                  message: suggestion.message || `Optimize pricing for ${product.name} to attract active buyers.`,
+                  type: 'ai',
+                  read: false,
+                  dedup_key: keyAi
+                });
+                notificationSet.add(keyAi);
+                localStorage.setItem(aiCooldownKey, Date.now().toString());
+              } catch (err) {
+                console.error('Failed to generate market rate suggestion:', err);
+              }
             }
           }
         }
@@ -261,40 +268,49 @@ const Dashboard = () => {
           .eq('status', 'active');
         
         if (!prodErr && catProducts) {
-          const matchingProds = catProducts.filter(p => sourcingCats.includes(p.category.toLowerCase()) && p.user_id !== user.id);
+          const matchingProds = catProducts.filter(p => sourcingCats.includes(p.category.toLowerCase()) && p.user_id !== user.id && p.quantity > 0);
           
           for (const product of matchingProds) {
-            // A. Expiry Bargain (if expiring soon, it is a great cheap bargain for buyers!)
+            if (newNotificationsToInsert.length >= 3) break; // Strict cap of 3 per sync
+
+            // A. Expiry Bargain (if expiring soon and has a deep discount >= 30%)
             if (product.expiry_date) {
               const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
-              if (daysToExpiry <= 45 && daysToExpiry > 0) {
-                const key = `${product.id}_ai`;
-                if (!notificationSet.has(key)) {
-                  newNotificationsToInsert.push({
-                    user_id: user.id,
-                    product_id: product.id,
-                    title: `🔥 Expiry Bargain: ${product.name}`,
-                    message: `FMCG/Pharma item near expiry (${daysToExpiry} days left) in your sourcing category ${product.category}. Clearance price is ₹${product.price}!`,
-                    type: 'ai',
-                    read: false
-                  });
-                  notificationSet.add(key);
+              if (daysToExpiry <= 30 && daysToExpiry > 0) {
+                const mrp = Number(product.mrp) || 0;
+                const price = Number(product.price) || 0;
+                const discount = mrp > 0 ? ((mrp - price) / mrp) * 100 : 0;
+                if (discount >= 30) {
+                  const key = `${product.id}_ai`;
+                  if (!notificationSet.has(key)) {
+                    newNotificationsToInsert.push({
+                      user_id: user.id,
+                      product_id: product.id,
+                      title: `🔥 Expiry Bargain: ${product.name}`,
+                      message: `FMCG/Pharma item near expiry (${daysToExpiry} days left) in "${product.category}". Clearance price: ₹${product.price}!`,
+                      type: 'ai',
+                      read: false,
+                      dedup_key: key
+                    });
+                    notificationSet.add(key);
+                  }
                 }
               }
             }
             
-            // B. New Listing Alert
+            // B. New Listing Alert (created in last 2 days)
             const daysSinceListed = Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000);
-            if (daysSinceListed <= 3) {
+            if (daysSinceListed <= 2) {
               const key = `${product.id}_info`;
               if (!notificationSet.has(key)) {
                 newNotificationsToInsert.push({
                   user_id: user.id,
                   product_id: product.id,
                   title: `✨ New Arrival: ${product.name}`,
-                  message: `A new bulk lot in your sourcing category "${product.category}" has just been listed. Click to bargain!`,
+                  message: `A new bulk lot in your sourcing category "${product.category}" has just been listed. Click to view!`,
                   type: 'info',
-                  read: false
+                  read: false,
+                  dedup_key: key
                 });
                 notificationSet.add(key);
               }
@@ -311,6 +327,7 @@ const Dashboard = () => {
       
       if (!orderErr && buyerOrders) {
         for (const order of buyerOrders) {
+          if (newNotificationsToInsert.length >= 3) break;
           // Key format: productId_success_status — must match the dedup_key stored in DB
           const key = `${order.product_id || 'no_prod'}_success_${order.status}`;
           if (order.status !== 'pending' && !notificationSet.has(key)) {
@@ -449,30 +466,27 @@ const Dashboard = () => {
 
   const markNotificationAsRead = async (id) => {
     try {
-      // DELETE permanently so it never re-appears after refresh
       const { error } = await supabase
         .from('notifications')
-        .delete()
+        .update({ read: true })
         .eq('id', id);
       if (error) throw error;
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Error dismissing notification:', err);
+      console.error('Error marking notification as read:', err);
     }
   };
 
   const markAllNotificationsAsRead = async () => {
     if (!user) return;
     try {
-      // DELETE all notifications permanently so sync doesn't recreate them on next reload
       const { error } = await supabase
         .from('notifications')
-        .delete()
+        .update({ read: true })
         .eq('user_id', user.id);
       if (error) throw error;
-      // Also clear all AI suggestion cooldowns so they can re-trigger after 24h
-      setNotifications([]);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (err) {
       console.error('Error clearing notifications:', err);
@@ -1244,12 +1258,12 @@ const Dashboard = () => {
                   </div>
 
                   <div className="dropdown-list" style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
-                    {notifications.length === 0 ? (
+                    {notifications.filter(n => !n.read).length === 0 ? (
                       <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
                         No alerts or suggestions yet.
                       </div>
                     ) : (
-                      notifications.map(notif => {
+                      notifications.filter(n => !n.read).map(notif => {
                         let icon = '🔔';
                         let cardStyle = {
                           padding: '10px',
