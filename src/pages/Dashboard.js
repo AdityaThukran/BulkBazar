@@ -738,11 +738,18 @@ const Dashboard = () => {
       setAiExpiryLoading(true);
     }
     
+    const productOrders = orders.filter(ord => ord.product_id === product.id);
+    const totalSold = productOrders.reduce((sum, o) => sum + (o.status === 'delivered' ? Number(o.quantity) : 0), 0);
+    const salesData = {
+      orderCount: productOrders.length,
+      totalSold
+    };
+
     try {
       const promises = [
-        analyzeDeadStock(product),
-        getDynamicPriceSuggestion(product),
-        generateLiquidationStrategies(product)
+        analyzeDeadStock(product, salesData),
+        getDynamicPriceSuggestion(product, salesData),
+        generateLiquidationStrategies(product, salesData)
       ];
       if (product.expiry_date) {
         promises.push(getExpiryPriceDecayCurve(product));

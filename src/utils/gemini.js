@@ -63,34 +63,49 @@ async function callGemini(systemPrompt, userPrompt, jsonMode = false) {
  * Analyzes a product and returns an AI-generated dead stock revival report.
  * Returns: { score: 0-100, level: 'High'|'Medium'|'Low', summary: string, tips: string[] }
  */
-export async function analyzeDeadStock(product) {
+export async function analyzeDeadStock(product, salesData = { orderCount: 0, totalSold: 0 }) {
   const sys = `You are BulkBazar's AI Dead Stock Analyst — an expert in B2B inventory liquidation for the Indian wholesale market.
-Analyze the product data and return ONLY valid JSON (no markdown, no extra text) with this exact structure:
+Analyze the product data and sales history to return ONLY valid JSON (no markdown, no extra text) with this exact structure:
 {
-  "score": <integer 0-100 representing B2B revival potential>,
+  "score": <integer 0-100 representing B2B revival potential based on sales activity and remaining stock>,
   "level": <"High" | "Medium" | "Low">,
-  "summary": <2-3 sentence expert analysis of this specific product's dead stock situation and market potential>,
+  "summary": <2-3 sentence expert analysis of this specific product's dead stock situation, sales velocity, and market potential>,
   "tips": [<3 to 5 specific, actionable revival tips tailored to THIS exact product>]
 }`;
 
-  const userPrompt = `Analyze this product for dead stock revival:
+  const userPrompt = `Analyze this product and sales history for dead stock revival:
 Name: ${product.name}
 Category: ${product.category}
 Condition: ${product.condition}
 Listed Price: ₹${product.price}
 MRP: ₹${product.mrp || 'Not provided'}
-Quantity: ${product.quantity} ${product.unit}
+Current Stock: ${product.quantity} ${product.unit}
 Description: ${product.description || 'No description'}
-Days listed: ${product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 'Unknown'}`;
+Days listed: ${product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 'Unknown'}
+Sales History:
+- Number of orders placed: ${salesData.orderCount}
+- Total quantity sold so far: ${salesData.totalSold} ${product.unit}`;
 
   try {
     return await callGemini(sys, userPrompt, true);
   } catch (e) {
     console.error('analyzeDeadStock error:', e.message);
+    let score = 55;
+    if (salesData.totalSold > 0) {
+      score += Math.min(25, Math.round((salesData.totalSold / (product.quantity + salesData.totalSold)) * 40));
+    } else if (product.quantity === 0) {
+      score = 100;
+    } else {
+      const days = product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 0;
+      score = Math.max(30, score - Math.floor(days / 5));
+    }
+    score = Math.min(99, Math.max(10, score));
+    const level = score >= 75 ? 'High' : score >= 45 ? 'Medium' : 'Low';
+    
     return {
-      score: 55,
-      level: 'Medium',
-      summary: `This ${product.category} listing shows moderate revival potential. The ${product.condition} condition at ₹${product.price} per ${product.unit} needs competitive positioning for B2B buyers.`,
+      score,
+      level,
+      summary: `This ${product.category} listing has ${salesData.orderCount} active orders with ${salesData.totalSold} units sold. The ${product.condition} condition at ₹${product.price} per ${product.unit} with ${product.quantity} units remaining in warehouse needs optimization.`,
       tips: [
         'Add a detailed product photo to increase buyer engagement by 3x',
         'Verify the MRP to clearly show the discount percentage',
@@ -107,8 +122,9 @@ Days listed: ${product.created_at ? Math.floor((Date.now() - new Date(product.cr
  * Returns AI-suggested resale price with a one-line rationale.
  * Returns: { price: number, rationale: string }
  */
-export async function getDynamicPriceSuggestion(product) {
+export async function getDynamicPriceSuggestion(product, salesData = { orderCount: 0, totalSold: 0 }) {
   const sys = `You are a B2B wholesale pricing expert for the Indian market.
+Suggest a B2B liquidation price taking into account current stock level and existing sales activity.
 Return ONLY valid JSON (no markdown):
 { "price": <integer recommended resale price in INR>, "rationale": <one concise sentence explaining the pricing logic> }`;
 
@@ -118,8 +134,11 @@ Category: ${product.category}
 Condition: ${product.condition}
 Current listed price: ₹${product.price}
 MRP / Retail price: ₹${product.mrp || 'Unknown'}
-Quantity available: ${product.quantity} ${product.unit}
-Days in stock: ${product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 'Unknown'}`;
+Current Stock: ${product.quantity} ${product.unit}
+Days in stock: ${product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 'Unknown'}
+Sales History:
+- Number of orders placed: ${salesData.orderCount}
+- Total quantity sold so far: ${salesData.totalSold} ${product.unit}`;
 
   try {
     return await callGemini(sys, userPrompt, true);
@@ -170,9 +189,9 @@ Rewrite with specific B2B language: bulk buying benefits, dispatch readiness, MS
  * Generates 3 AI-crafted liquidation strategies for a specific product.
  * Returns: Array of { title: string, description: string }
  */
-export async function generateLiquidationStrategies(product) {
+export async function generateLiquidationStrategies(product, salesData = { orderCount: 0, totalSold: 0 }) {
   const sys = `You are an expert B2B liquidation consultant for the Indian wholesale market.
-Generate exactly 3 distinct, highly actionable liquidation strategies for this specific product.
+Generate exactly 3 distinct, highly actionable liquidation strategies based on the remaining stock and sales performance.
 Return ONLY valid JSON (no markdown):
 [
   { "title": <strategy name with emoji, max 50 chars>, "description": <2-3 sentence specific action plan> },
@@ -185,9 +204,11 @@ Name: ${product.name}
 Category: ${product.category}
 Condition: ${product.condition}
 Price: ₹${product.price} per ${product.unit}
-Quantity: ${product.quantity} ${product.unit}
+Current Stock: ${product.quantity} ${product.unit}
 MRP: ₹${product.mrp || 'Not provided'}
-Description: ${product.description || 'None'}`;
+Sales History:
+- Number of orders placed: ${salesData.orderCount}
+- Total quantity sold: ${salesData.totalSold} ${product.unit}`;
 
   try {
     return await callGemini(sys, userPrompt, true);

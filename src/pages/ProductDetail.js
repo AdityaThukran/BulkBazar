@@ -39,9 +39,23 @@ const ProductDetail = () => {
 
         if (err) throw err;
         setProduct(data);
-        // Trigger Gemini AI assessment for this product
+        // Fetch product orders to calculate sales metrics
+        const { data: productOrders, error: orderErr } = await supabase
+          .from('orders')
+          .select('id, quantity, status')
+          .eq('product_id', id);
+
+        const totalSold = !orderErr && productOrders 
+          ? productOrders.reduce((sum, o) => sum + (o.status === 'delivered' ? Number(o.quantity) : 0), 0)
+          : 0;
+        const salesData = {
+          orderCount: !orderErr && productOrders ? productOrders.length : 0,
+          totalSold
+        };
+
+        // Trigger Gemini AI assessment for this product with live B2B sales history context
         setAiAssessmentLoading(true);
-        analyzeDeadStock(data)
+        analyzeDeadStock(data, salesData)
           .then(result => setAiAssessment(result))
           .catch(err => console.error('AI assessment error:', err))
           .finally(() => setAiAssessmentLoading(false));
