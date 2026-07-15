@@ -29,23 +29,23 @@ const CATEGORY_DEMAND = {
  * Evaluates the marketability score and optimization diagnostic tips for a product.
  * Returns { score, level, tips }
  */
-export const estimateMarketability = (product) => {
+export const estimateMarketability = (product, productOrders = []) => {
   if (!product) return { score: 50, level: 'Medium', tips: [] };
 
-  let score = 60; // Starting baseline
+  let score = 55; // Lower starting baseline to allow growth
   const tips = [];
 
   // 1. Condition evaluation
   const cond = product.condition || 'new';
   if (cond === 'new' || cond === 'like-new') {
-    score += 15;
+    score += 10;
   } else if (cond === 'good') {
     score += 5;
   } else if (cond === 'fair') {
     score -= 10;
     tips.push('Item condition is Fair. Consider bundling or offering higher discounts.');
   } else if (cond === 'damaged') {
-    score -= 30;
+    score -= 25;
     tips.push('Item is listed as Damaged. Restructure as "scrap materials" to target recycling buyers.');
   }
 
@@ -57,9 +57,9 @@ export const estimateMarketability = (product) => {
     if (discount >= 50) {
       score += 15;
     } else if (discount >= 30) {
-      score += 5;
+      score += 8;
     } else if (discount < 15) {
-      score -= 15;
+      score -= 12;
       tips.push('Resale discount is too narrow (< 15%). B2B buyers search for at least 30-50% off retail.');
     }
   } else {
@@ -69,28 +69,67 @@ export const estimateMarketability = (product) => {
   // 3. Category demand
   const category = product.category || 'Other';
   const categoryWeight = CATEGORY_DEMAND[category] || 50;
-  score += (categoryWeight - 60) * 0.4;
+  score += (categoryWeight - 60) * 0.3;
 
   // 4. Image presence check
   if (product.image_url) {
-    score += 15;
+    score += 10;
   } else {
-    score -= 10;
+    score -= 15;
     tips.push('No product photo uploaded. Adding a real photo increases buyer response rate by 240%.');
   }
 
-  // 5. Inventory aging (simulated from product creation)
+  // 5. Expiry Check
+  if (product.expiry_date) {
+    const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
+    if (daysToExpiry <= 0) {
+      score -= 25;
+      tips.push('🚨 This item has expired. Liquidation priority is critical. Apply salvage pricing.');
+    } else if (daysToExpiry <= 15) {
+      score -= 15;
+      tips.push('⚠️ Expiring in less than 15 days. Drop price to trigger emergency clearance.');
+    } else if (daysToExpiry <= 45) {
+      score -= 5;
+      tips.push('Expiring soon. Review pricing decay curve.');
+    }
+  }
+
+  // 6. Live Order Conversion Impact (The dynamic part!)
+  if (productOrders && productOrders.length > 0) {
+    const activeOrders = productOrders.filter(o => o.status !== 'cancelled');
+    const successfulOrders = productOrders.filter(o => o.status === 'delivered');
+    
+    score += activeOrders.length * 6;
+    score += successfulOrders.length * 4;
+    
+    if (activeOrders.length > 0) {
+      tips.push(`🔥 High B2B Traction: ${activeOrders.length} active purchase orders are currently open.`);
+    }
+  }
+
+  // 7. Inventory aging & zero traction decay
   const ageDays = product.created_at 
     ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
-  if (ageDays > 60) {
-    score -= 15;
-    tips.push('Listing has been active for over 60 days. Liquidate now by dropping price or pitching directly to matching buyers.');
+  if (ageDays > 0) {
+    const activeOrders = productOrders ? productOrders.filter(o => o.status !== 'cancelled') : [];
+    if (activeOrders.length === 0) {
+      const decay = Math.min(20, Math.floor(ageDays / 3)); // -1 point every 3 days, max -20
+      score -= decay;
+      if (decay > 5) {
+        tips.push(`Sitting in warehouse for ${ageDays} days with zero buyer orders. Marketability is declining.`);
+      }
+    }
   }
 
-  // Bound score between 5 and 99
-  score = Math.max(5, Math.min(99, Math.round(score)));
+  // If quantity is 0, it means it is fully cleared/sold out! Show 100% revival!
+  if (product.quantity === 0) {
+    return { score: 100, level: 'Revived', tips: ['🎉 Stock fully liquidated and cleared!'] };
+  }
+
+  // Bound score between 10 and 99
+  score = Math.max(10, Math.min(99, Math.round(score)));
 
   let level = 'Medium';
   if (score >= 80) level = 'High';

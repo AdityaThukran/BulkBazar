@@ -29,7 +29,18 @@ async function callGemini(systemPrompt, userPrompt, jsonMode = false) {
   if (!text) throw new Error('AI returned an empty response.');
 
   if (jsonMode) {
-    // Strip markdown code fences if the model wraps JSON in them
+    const startIdx = text.indexOf('{');
+    const endIdx = text.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      const jsonStr = text.substring(startIdx, endIdx + 1);
+      try {
+        return JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('JSON parsing failed on extracted block:', e);
+      }
+    }
+
+    // Fallback if index-based search fails
     const clean = text
       .replace(/^```json\s*/i, '')
       .replace(/^```\s*/i, '')

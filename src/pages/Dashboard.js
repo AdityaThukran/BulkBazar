@@ -1597,7 +1597,8 @@ const Dashboard = () => {
                     ) : (
                       products
                         .map(p => {
-                          const diagnosis = estimateMarketability(p);
+                          const productOrders = orders.filter(ord => ord.product_id === p.id);
+                          const diagnosis = estimateMarketability(p, productOrders);
                           return { product: p, diagnosis };
                         })
                         .sort((a, b) => a.diagnosis.score - b.diagnosis.score)
@@ -1717,7 +1718,8 @@ const Dashboard = () => {
                           <td><span className={`condition-badge condition-${product.condition}`}>{product.condition}</span></td>
                           <td>
                             {(() => {
-                              const diagnosis = estimateMarketability(product);
+                              const productOrders = orders.filter(ord => ord.product_id === product.id);
+                              const diagnosis = estimateMarketability(product, productOrders);
                               return (
                                 <span
                                   className={`ai-marketability-badge level-${diagnosis.level.toLowerCase()}`}
