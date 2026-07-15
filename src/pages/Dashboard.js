@@ -430,7 +430,7 @@ const Dashboard = () => {
         // Fetch outgoing orders placed by this buyer
         const { data, error } = await supabase
           .from('orders')
-          .select('*, products(name, unit, category, user_id, profiles(id, full_name, company))')
+          .select('*, products(name, unit, category, user_id, price, quantity, profiles(id, full_name, company))')
           .eq('buyer_id', user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
@@ -448,7 +448,7 @@ const Dashboard = () => {
         // Fetch incoming orders received by this seller
         const { data, error } = await supabase
           .from('orders')
-          .select('*, products(name, unit, category)')
+          .select('*, products(name, unit, category, price, quantity)')
           .eq('seller_id', user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
