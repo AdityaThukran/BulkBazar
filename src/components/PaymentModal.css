@@ -1,0 +1,290 @@
+/* ======== PAYMENT GATEWAY MODAL ======== */
+.payment-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 18, 18, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.payment-modal-box {
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-white, #faf9f5);
+  border: 3px solid var(--border, #121212) !important;
+  box-shadow: 8px 8px 0px var(--border, #121212) !important;
+  border-radius: 4px;
+  padding: 0 !important;
+  overflow: hidden;
+  animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.payment-header {
+  background: var(--bg-dark-section, #121212);
+  color: var(--bg-white, #faf9f5);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 3px solid var(--border, #121212);
+}
+
+.payment-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payment-header-title h3 {
+  margin: 0;
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #faf9f5;
+}
+
+.shield-icon {
+  color: var(--accent, #00d4aa);
+}
+
+.payment-close-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.payment-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* Summary Box */
+.payment-summary-box {
+  background: var(--bg-section, #ebeae3);
+  border-bottom: 2px solid var(--border, #121212);
+  padding: 16px 20px;
+}
+
+.summary-lbl {
+  margin: 0 0 4px 0;
+  font-family: var(--font-mono, 'JetBrains Mono');
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted, #8a8578);
+  font-weight: 700;
+}
+
+.summary-product-name {
+  margin: 0 0 12px 0;
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary, #121212);
+}
+
+.payment-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--text-muted, #8a8578);
+}
+
+.fee-row {
+  color: #0d9488;
+  font-weight: 600;
+}
+
+.payment-summary-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 800;
+  border-top: 1.5px dashed rgba(18, 18, 18, 0.25);
+  margin-top: 10px;
+  padding-top: 10px;
+  color: var(--text-primary, #121212);
+}
+
+.payment-summary-total strong {
+  font-family: var(--font-mono, 'JetBrains Mono');
+  font-size: 18px;
+  color: var(--text-primary, #121212);
+}
+
+/* Tabs */
+.payment-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border, #121212);
+  background: var(--bg-white, #faf9f5);
+}
+
+.payment-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px;
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-muted, #8a8578);
+  border-right: 2px solid var(--border, #121212);
+  transition: all 0.15s;
+}
+
+.payment-tab-btn:last-child {
+  border-right: none;
+}
+
+.payment-tab-btn.active {
+  background: var(--accent, #00d4aa);
+  color: var(--text-primary, #121212);
+}
+
+.payment-tab-btn:hover:not(.active) {
+  background: var(--bg-section, #ebeae3);
+}
+
+/* Form */
+.payment-form {
+  padding: 20px;
+}
+
+.payment-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.payment-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payment-field-group label {
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary, #121212);
+}
+
+.payment-field-group input {
+  padding: 10px 12px;
+  font-family: var(--font-mono, 'JetBrains Mono');
+  font-size: 13px;
+  border: 2px solid var(--border, #121212);
+  background: var(--bg-white, #faf9f5);
+  border-radius: 4px;
+  outline: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.payment-field-group input:focus {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0px var(--border, #121212);
+}
+
+.payment-field-row {
+  display: flex;
+  gap: 14px;
+}
+
+.payment-field-row .payment-field-group {
+  flex: 1;
+}
+
+.field-help-text {
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 11px;
+  color: var(--text-muted, #8a8578);
+  margin-top: 2px;
+}
+
+/* Pay Button */
+.payment-submit-btn {
+  width: 100%;
+  background: var(--text-primary, #121212);
+  color: var(--bg-white, #faf9f5);
+  border: 2px solid var(--border, #121212);
+  padding: 14px;
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0px var(--border, #121212);
+  transition: all 0.15s;
+}
+
+.payment-submit-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--border, #121212);
+}
+
+.payment-submit-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.payment-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.payment-footer {
+  text-align: center;
+  font-family: var(--font-heading, 'Space Grotesk');
+  font-size: 11px;
+  color: var(--text-muted, #8a8578);
+  padding: 12px 20px 20px 20px;
+  border-top: 1.5px solid rgba(18, 18, 18, 0.08);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}

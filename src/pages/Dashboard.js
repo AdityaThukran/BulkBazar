@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ChatDrawer from '../components/ChatDrawer';
+import PaymentModal from '../components/PaymentModal';
 import { generateForecastData, estimateMarketability } from '../utils/aiEngine';
 import {
   analyzeDeadStock,
@@ -106,6 +107,8 @@ const Dashboard = () => {
   const [aiMatches, setAiMatches] = useState([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [ordersSubTab, setOrdersSubTab] = useState('orders'); // 'orders' or 'pitches'
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState(null);
 
   // Stats
   const [selectedSellerShop, setSelectedSellerShop] = useState(null);
@@ -426,7 +429,33 @@ const Dashboard = () => {
     if (!user) return;
     setOrdersLoading(true);
     try {
-      if (profile?.role === 'buyer') {
+      if (profile?.role === 'admin') {
+        // Fetch all orders on the platform for admin overview
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, products(name, unit, category, price, quantity, profiles(id, full_name, company))')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setOrders(data || []);
+        
+        // Fetch platform profile stats
+        const { data: users, error: userErr } = await supabase
+          .from('profiles')
+          .select('role');
+          
+        const totalVolume = (data || []).reduce((sum, o) => sum + Number(o.total_price), 0);
+        const adminRevenue = totalVolume * 0.02; // 2% platform fee
+        const buyerCount = !userErr && users ? users.filter(u => u.role === 'buyer').length : 0;
+        const sellerCount = !userErr && users ? users.filter(u => u.role === 'seller').length : 0;
+
+        setStats({
+          totalProducts: (data || []).length, // total orders count
+          totalValue: totalVolume, // total volume
+          lowStock: buyerCount, // buyer count
+          activeCount: sellerCount, // seller count
+          pendingOrders: adminRevenue // platform revenue
+        });
+      } else if (profile?.role === 'buyer') {
         // Fetch outgoing orders placed by this buyer
         const { data, error } = await supabase
           .from('orders')
@@ -555,7 +584,18 @@ const Dashboard = () => {
     }
   };
 
-  // Create a pitch proposal order and open live chat with a real Gemini-written message
+  const handleTriggerPitchAcceptPayment = (order) => {
+    setPendingPaymentOrder(order);
+    setShowPaymentModal(true);
+  };
+
+  const handlePitchPaymentSuccess = async () => {
+    if (!pendingPaymentOrder) return;
+    const orderId = pendingPaymentOrder.id;
+    setShowPaymentModal(false);
+    setPendingPaymentOrder(null);
+    await handleUpdateOrderStatus(orderId, 'pending');
+  };
   const handlePitchStock = async (buyer, product) => {
     if (!product || !buyer) return;
     setAiPitchLoading(true);
@@ -1089,7 +1129,7 @@ const Dashboard = () => {
             <LayoutDashboard size={18} />
             Overview
           </button>
-          {profile?.role !== 'buyer' && (
+          {profile?.role !== 'admin' && profile?.role !== 'buyer' && (
             <button
               className={`sidebar-nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
               onClick={() => { setActiveTab('inventory'); setSidebarOpen(false); }}
@@ -1098,7 +1138,7 @@ const Dashboard = () => {
               Inventory
             </button>
           )}
-          {profile?.role !== 'buyer' && (
+          {profile?.role !== 'admin' && profile?.role !== 'buyer' && (
             <button
               className={`sidebar-nav-item ${activeTab === 'ai-insights' ? 'active' : ''}`}
               onClick={() => { setActiveTab('ai-insights'); setSidebarOpen(false); }}
@@ -1107,22 +1147,24 @@ const Dashboard = () => {
               AI Insights
             </button>
           )}
-          <button
-            className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
-          >
-            <ClipboardList size={18} />
-            <span style={{ flex: 1 }}>{profile?.role === 'buyer' ? 'My Orders' : 'Orders'}</span>
-            {Object.values(unreadMessages).reduce((a, b) => a + b, 0) > 0 && (
-              <span className="sidebar-orders-badge" style={{ background: 'var(--accent)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <MessageSquare size={10} />
-                {Object.values(unreadMessages).reduce((a, b) => a + b, 0)}
-              </span>
-            )}
-            {profile?.role !== 'buyer' && stats.pendingOrders > 0 && (
-              <span className="sidebar-orders-badge">{stats.pendingOrders}</span>
-            )}
-          </button>
+          {profile?.role !== 'admin' && (
+            <button
+              className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('orders'); setSidebarOpen(false); fetchOrders(); }}
+            >
+              <ClipboardList size={18} />
+              <span style={{ flex: 1 }}>{profile?.role === 'buyer' ? 'My Orders' : 'Orders'}</span>
+              {Object.values(unreadMessages).reduce((a, b) => a + b, 0) > 0 && (
+                <span className="sidebar-orders-badge" style={{ background: 'var(--accent)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <MessageSquare size={10} />
+                  {Object.values(unreadMessages).reduce((a, b) => a + b, 0)}
+                </span>
+              )}
+              {profile?.role !== 'buyer' && stats.pendingOrders > 0 && (
+                <span className="sidebar-orders-badge">{stats.pendingOrders}</span>
+              )}
+            </button>
+          )}
           <button
             className={`sidebar-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => { setActiveTab('profile'); setSidebarOpen(false); }}
@@ -1133,10 +1175,12 @@ const Dashboard = () => {
         </nav>
 
         <div className="sidebar-footer">
-          <Link to="/marketplace" className="sidebar-marketplace-btn">
-            <Store size={16} />
-            Visit Marketplace
-          </Link>
+          {profile?.role !== 'admin' && (
+            <Link to="/marketplace" className="sidebar-marketplace-btn">
+              <Store size={16} />
+              Visit Marketplace
+            </Link>
+          )}
           <button className="sidebar-logout" onClick={handleLogout}>
             <LogOut size={18} />
             Log Out
@@ -1331,7 +1375,108 @@ const Dashboard = () => {
           {/* ======== OVERVIEW TAB ======== */}
           {activeTab === 'overview' && (
             <div className="overview-tab">
-              {profile?.role === 'buyer' ? (
+              {profile?.role === 'admin' ? (
+                // ADMIN OVERVIEW
+                <div className="inventory-intelligence-dashboard">
+                  <div className="intel-dash-window-header" style={{ background: 'var(--accent)' }}>
+                    <div className="window-dots">
+                      <span className="dot dot-red"></span>
+                      <span className="dot dot-yellow"></span>
+                      <span className="dot dot-green"></span>
+                    </div>
+                    <span className="window-title" style={{ color: 'var(--text-primary)' }}>BulkBazar Admin Platform Control</span>
+                  </div>
+
+                  <div className="intel-dash-content" style={{ padding: '20px' }}>
+                    {/* Platform Stats Grid */}
+                    <div className="intel-stats-grid">
+                      <div className="intel-stat-card">
+                        <span className="intel-card-label">Platform Gross Volume</span>
+                        <span className="intel-card-value">{formatCurrency(stats.totalValue || 0)}</span>
+                        <span className="intel-card-sub">from {stats.totalProducts || 0} platform trades</span>
+                      </div>
+
+                      <div className="intel-stat-card" style={{ borderColor: 'var(--accent)', boxShadow: '4px 4px 0px var(--accent)' }}>
+                        <span className="intel-card-label">BulkBazar Net Revenue (2%)</span>
+                        <span className="intel-card-value" style={{ color: '#0d9488' }}>{formatCurrency(stats.pendingOrders || 0)}</span>
+                        <span className="intel-card-sub text-green">Real-time commission cut</span>
+                      </div>
+
+                      <div className="intel-stat-card">
+                        <span className="intel-card-label">Active Registered Accounts</span>
+                        <span className="intel-card-value">{stats.lowStock + stats.activeCount} Users</span>
+                        <span className="intel-card-sub">{stats.lowStock} Buyers / {stats.activeCount} Sellers</span>
+                      </div>
+                    </div>
+
+                    {/* Transaction Logs Table */}
+                    <div className="overview-section" style={{ marginTop: '30px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: '800', textTransform: 'uppercase', fontSize: '15px', marginBottom: '15px' }}>All Platform Transactions (Revenue Logs)</h3>
+                      {orders.length === 0 ? (
+                        <div className="empty-state">
+                          <ClipboardList size={40} />
+                          <p>No transactions registered on the platform yet.</p>
+                        </div>
+                      ) : (
+                        <div className="inventory-table-wrap">
+                          <table className="inventory-table">
+                            <thead>
+                              <tr>
+                                <th>Order ID</th>
+                                <th>Buyer</th>
+                                <th>Seller</th>
+                                <th>Product</th>
+                                <th>Deal Amount</th>
+                                <th>Commission Fee (2%)</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {orders.map(order => {
+                                const fee = Number(order.total_price) * 0.02;
+                                return (
+                                  <tr key={order.id}>
+                                    <td style={{ fontSize: '11px', fontFamily: 'var(--font-mono)' }}>#{order.id.slice(0, 8)}</td>
+                                    <td>
+                                      <div className="product-name-cell">
+                                        <span className="product-name">{order.buyer_name}</span>
+                                        <span className="product-desc">{order.buyer_email}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div className="product-name-cell">
+                                        <span className="product-name">{order.products?.profiles?.full_name || 'Seller'}</span>
+                                        <span className="product-desc">{order.products?.profiles?.company || 'Manufacturer'}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div className="product-name-cell">
+                                        <span className="product-name">{order.products?.name || '—'}</span>
+                                        <span className="product-desc">{order.products?.category || ''}</span>
+                                      </div>
+                                    </td>
+                                    <td className="price-cell" style={{ fontWeight: '700' }}>{formatCurrency(order.total_price)}</td>
+                                    <td className="price-cell" style={{ color: '#0d9488', fontWeight: 'bold' }}>{formatCurrency(fee)}</td>
+                                    <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                      {new Date(order.created_at).toLocaleDateString('en-IN')}
+                                    </td>
+                                    <td>
+                                      <span className={`order-status-badge order-status-${order.status}`} style={{ textTransform: 'uppercase' }}>
+                                        {order.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : profile?.role === 'buyer' ? (
                 // BUYER OVERVIEW
                 <>
                   <div className="stats-grid">
@@ -2060,7 +2205,7 @@ const Dashboard = () => {
                                       type="button"
                                       className="chat-trigger-btn"
                                       style={{ background: '#22c55e', color: 'white', borderColor: '#16a34a', fontWeight: 'bold' }}
-                                      onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                                      onClick={() => handleTriggerPitchAcceptPayment(order)}
                                     >
                                       Accept
                                     </button>
@@ -2875,6 +3020,13 @@ const Dashboard = () => {
           </button>
         </div>
       )}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => { setShowPaymentModal(false); setPendingPaymentOrder(null); }}
+        totalAmount={pendingPaymentOrder ? pendingPaymentOrder.total_price : 0}
+        productName={pendingPaymentOrder ? (pendingPaymentOrder.products?.name || 'Wholesale Goods') : ''}
+        onPaymentSuccess={handlePitchPaymentSuccess}
+      />
     </div>
   );
 };

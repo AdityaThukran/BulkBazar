@@ -7,6 +7,7 @@ import {
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { analyzeDeadStock } from '../utils/gemini';
+import PaymentModal from '../components/PaymentModal';
 import './ProductDetail.css';
 
 const ProductDetail = () => {
@@ -23,6 +24,7 @@ const ProductDetail = () => {
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   // Real Gemini AI assessment state
   const [aiAssessment, setAiAssessment] = useState(null);
   const [aiAssessmentLoading, setAiAssessmentLoading] = useState(false);
@@ -90,15 +92,20 @@ const ProductDetail = () => {
 
   const isOwnListing = user && product && user.id === product.user_id;
 
-  const handlePlaceOrder = async (e) => {
+  const handleTriggerPayment = (e) => {
     e.preventDefault();
     if (!user) { navigate('/login'); return; }
     if (orderQty < 1 || orderQty > product.quantity) {
       setOrderError(`Please enter a quantity between 1 and ${product.quantity}.`);
       return;
     }
-    setOrderLoading(true);
     setOrderError('');
+    setShowPaymentModal(true);
+  };
+
+  const completeOrderPlacement = async () => {
+    setShowPaymentModal(false);
+    setOrderLoading(true);
     try {
       const { error: err } = await supabase
         .from('orders')
@@ -371,7 +378,7 @@ const ProductDetail = () => {
                   <div className="order-error">{orderError}</div>
                 )}
 
-                <form onSubmit={handlePlaceOrder} className="order-form">
+                <form onSubmit={handleTriggerPayment} className="order-form">
                   <div className="order-price-summary">
                     <div className="order-price-per">
                       <IndianRupee size={14} /> {formatCurrency(product.price)} per {product.unit}
@@ -427,6 +434,13 @@ const ProductDetail = () => {
           </div>
         </div>
       </div>
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        totalAmount={totalPrice}
+        productName={product.name}
+        onPaymentSuccess={completeOrderPlacement}
+      />
     </div>
   );
 };
