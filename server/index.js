@@ -29,7 +29,8 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (curl, Postman, same-origin) or from allowed list
-    if (!origin || allowedOrigins.includes(origin)) {
+    const sanitizedOrigin = origin ? origin.replace(/\/$/, '') : null;
+    if (!origin || allowedOrigins.includes(sanitizedOrigin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origin ${origin} not allowed`));
@@ -69,7 +70,7 @@ const rateLimiter = (req, res, next) => {
 // Gemini AI Proxy — POST /api/gemini
 // ─────────────────────────────────────────────────────────────────────────────
 const GEMINI_KEY = process.env.GEMINI_KEY;
-const GEMINI_MODEL = 'gemini-flash-latest';
+const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
 
 app.post('/api/gemini', rateLimiter, async (req, res) => {
