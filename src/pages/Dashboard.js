@@ -14,7 +14,8 @@ import {
   getDynamicPriceSuggestion,
   generateOptimizedListing,
   generateLiquidationStrategies,
-  generateSalesPitch
+  generateSalesPitch,
+  getExpiryPriceDecayCurve
 } from '../utils/gemini';
 import './Dashboard.css';
 
@@ -29,7 +30,7 @@ const CONDITIONS = ['new', 'like-new', 'good', 'fair', 'damaged'];
 const emptyProduct = {
   name: '', description: '', category: 'Other', quantity: 0,
   unit: 'pieces', price: 0, mrp: 0, condition: 'new', status: 'active',
-  image_url: ''
+  image_url: '', expiry_date: ''
 };
 
 const Dashboard = () => {
@@ -76,6 +77,8 @@ const Dashboard = () => {
   const [aiStrategies, setAiStrategies] = useState([]);
   const [aiStrategiesLoading, setAiStrategiesLoading] = useState(false);
   const [aiPitchLoading, setAiPitchLoading] = useState(false);
+  const [aiExpiryResult, setAiExpiryResult] = useState(null);
+  const [aiExpiryLoading, setAiExpiryLoading] = useState(false);
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -418,28 +421,43 @@ const Dashboard = () => {
 
   const openDiagnosisModal = async (product) => {
     setSelectedDiagnosisProduct(product);
-    setDiagnosisTab('assessment');
+    setDiagnosisTab(product.expiry_date ? 'expiry' : 'assessment');
     setAiDiagnosisResult(null);
     setAiPriceResult(null);
     setAiStrategies([]);
+    setAiExpiryResult(null);
     setShowDiagnosisModal(true);
+    
     // Fetch from Gemini in parallel
     setAiDiagnosisLoading(true);
     setAiStrategiesLoading(true);
+    if (product.expiry_date) {
+      setAiExpiryLoading(true);
+    }
+    
     try {
-      const [diagnosis, pricing, strategies] = await Promise.all([
+      const promises = [
         analyzeDeadStock(product),
         getDynamicPriceSuggestion(product),
         generateLiquidationStrategies(product)
-      ]);
-      setAiDiagnosisResult(diagnosis);
-      setAiPriceResult(pricing);
-      setAiStrategies(strategies);
+      ];
+      if (product.expiry_date) {
+        promises.push(getExpiryPriceDecayCurve(product));
+      }
+      
+      const results = await Promise.all(promises);
+      setAiDiagnosisResult(results[0]);
+      setAiPriceResult(results[1]);
+      setAiStrategies(results[2]);
+      if (product.expiry_date && results[3]) {
+        setAiExpiryResult(results[3]);
+      }
     } catch (err) {
       console.error('Gemini diagnosis error:', err);
     } finally {
       setAiDiagnosisLoading(false);
       setAiStrategiesLoading(false);
+      setAiExpiryLoading(false);
     }
   };
 
@@ -559,6 +577,7 @@ const Dashboard = () => {
       condition: product.condition,
       status: product.status,
       image_url: product.image_url || '',
+      expiry_date: product.expiry_date || ''
     });
     setImagePreview(product.image_url || null);
     setSelectedFile(null);
@@ -631,7 +650,8 @@ const Dashboard = () => {
         mrp: productForm.mrp,
         condition: productForm.condition,
         status: productForm.status,
-        image_url: imageUrl
+        image_url: imageUrl,
+        expiry_date: productForm.expiry_date || null
       };
 
       if (editingProduct) {
@@ -1668,6 +1688,24 @@ const Dashboard = () => {
                 </div>
               </div>
 
+              {(productForm.category === 'FMCG' || productForm.category === 'Pharma') && (
+                <div className="form-group expiry-date-group" style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                    <span style={{ color: '#d97706' }}>⏰</span> Expiry Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="expiry_date"
+                    value={productForm.expiry_date || ''}
+                    onChange={handleProductFormChange}
+                    required
+                  />
+                  <span className="form-hint" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Required for FMCG &amp; Pharma to calculate AI Expiry-Decay pricing schedules.
+                  </span>
+                </div>
+              )}
+
               <div className="form-row form-row-3">
                 <div className="form-group">
                   <label>Quantity *</label>
@@ -1750,8 +1788,28 @@ const Dashboard = () => {
             </div>
 
             <div className="modal-body" style={{ padding: '20px 24px 24px' }}>
-              {/* Diagnosis Tabs */}
               <div className="diagnosis-tabs" style={{ display: 'flex', gap: '10px', borderBottom: '2px solid var(--border)', marginBottom: '16px', paddingBottom: '2px' }}>
+                {selectedDiagnosisProduct.expiry_date && (
+                  <button
+                    type="button"
+                    className={`diagnosis-tab-btn ${diagnosisTab === 'expiry' ? 'active' : ''}`}
+                    onClick={() => setDiagnosisTab('expiry')}
+                    style={{
+                      padding: '6px 12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      border: '2px solid ' + (diagnosisTab === 'expiry' ? 'var(--border)' : 'transparent'),
+                      borderRadius: '4px 4px 0 0',
+                      background: diagnosisTab === 'expiry' ? 'var(--bg-section)' : 'transparent',
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    ⏰ Expiry Alarm
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`diagnosis-tab-btn ${diagnosisTab === 'assessment' ? 'active' : ''}`}
@@ -1792,7 +1850,124 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              {diagnosisTab === 'assessment' ? (
+              {diagnosisTab === 'expiry' ? (
+                aiExpiryLoading ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>
+                    <div style={{ marginBottom: '12px', fontSize: '24px' }}>⏰</div>
+                    Gemini AI is analyzing shelf-life decay pricing...<br />
+                    <span style={{ fontSize: '11px' }}>Calculating discount timeline &amp; clearance strategies</span>
+                  </div>
+                ) : aiExpiryResult ? (
+                  <div className="ai-expiry-layout">
+                    {/* Status Box */}
+                    <div className={`expiry-status-box status-${aiExpiryResult.daysToExpiry <= 30 ? 'critical' : aiExpiryResult.daysToExpiry <= 60 ? 'warning' : 'safe'}`} style={{
+                      padding: '12px 16px',
+                      borderRadius: '4px',
+                      border: '2px solid',
+                      marginBottom: '16px',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      background: aiExpiryResult.daysToExpiry <= 30 ? '#fef2f2' : aiExpiryResult.daysToExpiry <= 60 ? '#fffbeb' : '#f0fdf4',
+                      color: aiExpiryResult.daysToExpiry <= 30 ? '#991b1b' : aiExpiryResult.daysToExpiry <= 60 ? '#92400e' : '#166534',
+                      borderColor: aiExpiryResult.daysToExpiry <= 30 ? '#f87171' : aiExpiryResult.daysToExpiry <= 60 ? '#fbbf24' : '#4ade80'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Status: {aiExpiryResult.currentStatus}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>({aiExpiryResult.daysToExpiry} days left)</span>
+                      </div>
+                    </div>
+
+                    {/* Expiry decay pricing stages */}
+                    <div className="ai-diagnosis-section-title">⏰ Expiry-Decay Price Timeline</div>
+                    <table className="expiry-decay-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', marginBottom: '16px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                          <th style={{ padding: '6px 4px' }}>Stage</th>
+                          <th style={{ padding: '6px 4px' }}>Days Left</th>
+                          <th style={{ padding: '6px 4px' }}>Price</th>
+                          <th style={{ padding: '6px 4px' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiExpiryResult.decayTimeline.map((stage, idx) => {
+                          const currentPriceMatch = Number(selectedDiagnosisProduct.price) === stage.suggestedPrice;
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: currentPriceMatch ? 'rgba(59, 130, 246, 0.05)' : 'transparent' }}>
+                              <td style={{ padding: '8px 4px', fontWeight: 'bold' }}>
+                                {stage.stageName} {stage.discountPct > 0 && <span style={{ color: '#d97706' }}>({stage.discountPct}% Off)</span>}
+                                {currentPriceMatch && <span style={{ marginLeft: '6px', fontSize: '9px', padding: '1px 4px', background: '#3b82f6', color: '#fff', borderRadius: '3px' }}>Current</span>}
+                              </td>
+                              <td style={{ padding: '8px 4px', fontFamily: 'var(--font-mono)' }}>{stage.daysRemaining}</td>
+                              <td style={{ padding: '8px 4px', fontWeight: 'bold' }}>{formatCurrency(stage.suggestedPrice)}</td>
+                              <td style={{ padding: '4px 4px' }}>
+                                <button
+                                  type="button"
+                                  className="ai-pricing-apply-btn"
+                                  style={{ padding: '2px 6px', fontSize: '9px' }}
+                                  disabled={currentPriceMatch}
+                                  onClick={async () => {
+                                    try {
+                                      const { error } = await supabase
+                                        .from('products')
+                                        .update({
+                                          price: stage.suggestedPrice,
+                                          updated_at: new Date().toISOString()
+                                        })
+                                        .eq('id', selectedDiagnosisProduct.id);
+                                      if (error) throw error;
+                                      setShowDiagnosisModal(false);
+                                      setSelectedDiagnosisProduct(null);
+                                      await fetchProducts();
+                                      alert(`Applied ${stage.stageName} price of ${formatCurrency(stage.suggestedPrice)} successfully!`);
+                                    } catch (err) {
+                                      alert('Failed to update price: ' + err.message);
+                                    }
+                                  }}
+                                >
+                                  Apply
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Urgent Pitch */}
+                    <div className="ai-diagnosis-section-title">🚨 Urgent B2B Clearance Pitch</div>
+                    <div className="clearance-pitch-card" style={{
+                      position: 'relative',
+                      background: 'var(--bg-section)',
+                      border: '2px solid var(--border)',
+                      borderRadius: '4px',
+                      padding: '12px',
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                      color: 'var(--text-primary)',
+                      boxShadow: '2px 2px 0px var(--border)',
+                      marginBottom: '10px'
+                    }}>
+                      <p style={{ margin: '0 0 10px', whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>{aiExpiryResult.clearancePitch}</p>
+                      <button
+                        type="button"
+                        className="chat-trigger-btn"
+                        style={{ width: '100%', padding: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiExpiryResult.clearancePitch);
+                          alert("Pitch copied to clipboard!");
+                        }}
+                      >
+                        📋 Copy Clearance Pitch
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    AI Expiry Analysis temporarily unavailable.
+                  </div>
+                )
+              ) : diagnosisTab === 'assessment' ? (
                 aiDiagnosisLoading ? (
                   <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>
                     <div style={{ marginBottom: '12px', fontSize: '24px' }}>✨</div>
@@ -1849,14 +2024,14 @@ const Dashboard = () => {
                         </ul>
                       ) : (
                         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                          🎉 This listing is well-optimized. Keep it active to attract buyers.
+                          🎉 This listing is well-optimized. Keep it active to wait for buyers.
                         </p>
                       )}
                     </div>
                   );
                 })() : null
               ) : (
-                aiStrategiesLoading ? (
+                  aiStrategiesLoading ? (
                   <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>
                     <div style={{ marginBottom: '12px', fontSize: '24px' }}>📋</div>
                     Gemini is generating liquidation strategies...

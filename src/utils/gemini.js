@@ -285,3 +285,62 @@ Write the next message.`;
     return `If you're open to taking the full lot of ${product?.quantity} ${product?.unit}, we can offer a special volume price. Shall we discuss the terms?`;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. EXPIRY PRICE DECAY & ALARM
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Calculates a 4-stage price decay curve based on expiry date, condition, and category.
+ * Returns: { currentStatus: string, daysToExpiry: number, decayTimeline: Array, clearancePitch: string }
+ */
+export async function getExpiryPriceDecayCurve(product) {
+  const sys = `You are a B2B dead stock liquidation expert. 
+For the provided product with an expiry date, calculate a 4-stage price decay timeline as it approaches expiration.
+The decay stages should represent:
+1. Fresh Stage (current or initial stage)
+2. Warning Stage (typically 45-60 days before expiry)
+3. Critical Stage (typically 20-30 days before expiry)
+4. Clearance Stage (typically 5-10 days before expiry)
+
+Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
+{
+  "currentStatus": <"Safe" | "Warning: Expires in X Days" | "Critical: Expires in X Days">,
+  "daysToExpiry": <integer number of days remaining>,
+  "decayTimeline": [
+    { "stageName": "Stage Name", "daysRemaining": <days remaining range as string, e.g. '60-90 Days'>, "discountPct": <integer discount percentage, e.g. 20>, "suggestedPrice": <integer price in INR>, "rationale": "one short sentence rationale" }
+  ],
+  "clearancePitch": <Urgent B2B clearance proposal copy (100-150 words) tailored to bulk buyers & liquidators for quick acquisition>
+}`;
+
+  const userPrompt = `Calculate expiry price decay timeline for:
+Name: ${product.name}
+Category: ${product.category}
+Price: ₹${product.price}
+MRP: ₹${product.mrp || 'Not provided'}
+Quantity: ${product.quantity} ${product.unit}
+Condition: ${product.condition}
+Expiry Date: ${product.expiry_date || 'Unknown'}
+Today's Date: ${new Date().toISOString().split('T')[0]}`;
+
+  try {
+    return await callGemini(sys, userPrompt, true);
+  } catch (e) {
+    console.error('getExpiryPriceDecayCurve error:', e.message);
+    const price = Number(product.price) || 100;
+    const days = product.expiry_date 
+      ? Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000)
+      : 30;
+    return {
+      currentStatus: days > 60 ? 'Safe' : days > 30 ? `Warning: Expires in ${days} Days` : `Critical: Expires in ${days} Days`,
+      daysToExpiry: days,
+      decayTimeline: [
+        { stageName: "Fresh Lot", daysRemaining: "60+ Days", discountPct: 0, suggestedPrice: price, rationale: "Product is fresh. Sells at standard B2B resale rate." },
+        { stageName: "Warning Phase", daysRemaining: "30-60 Days", discountPct: 20, suggestedPrice: Math.round(price * 0.8), rationale: "Approaching half shelf-life. Small bulk discount recommended." },
+        { stageName: "Critical Zone", daysRemaining: "15-30 Days", discountPct: 50, suggestedPrice: Math.round(price * 0.5), rationale: "Clearance phase. Heavy discount to match discount retailers." },
+        { stageName: "Terminal Phase", daysRemaining: "0-15 Days", discountPct: 80, suggestedPrice: Math.round(price * 0.2), rationale: "Last call clearance. Salvage value clearance pricing." }
+      ],
+      clearancePitch: `URGENT CLEARANCE OFFER: We are liquidating ${product.quantity} ${product.unit} of ${product.name} at a major clearance price of ₹${Math.round(price * 0.5)} per unit (original asking ₹${price}). Short shelf-life (expires in ${days} days). Ideal for immediate resale or distribution. Contact us now to finalize freight and immediate loading!`
+    };
+  }
+}
+

@@ -2634,6 +2634,38 @@
   cursor: not-allowed;
 }
 
+/* AI Expiry Alarm styles */
+.expiry-status-box {
+  transition: all 0.2s ease-in-out;
+}
+.expiry-status-box:hover {
+  transform: translateY(-1px);
+}
+
+.expiry-decay-table th {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.expiry-decay-table td {
+  font-family: var(--font-body);
+}
+
+.clearance-pitch-card {
+  transition: all 0.15s ease-in-out;
+}
+.clearance-pitch-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--border) !important;
+}
+
+.expiry-date-group input[type="date"] {
+  width: 100%;
+}
+
+
 
 
 

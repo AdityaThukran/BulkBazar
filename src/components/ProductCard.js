@@ -12,6 +12,11 @@ const ProductCard = ({ product }) => {
   const diagnosis = estimateMarketability(product);
   const isTopValue = diagnosis.score >= 75;
 
+  const daysToExpiry = product.expiry_date
+    ? Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000)
+    : null;
+  const isExpiringSoon = daysToExpiry !== null && daysToExpiry <= 45;
+
   const formatCurrency = (val) =>
     new Intl.NumberFormat('en-IN', {
       style: 'currency', currency: 'INR', maximumFractionDigits: 0
@@ -40,6 +45,11 @@ const ProductCard = ({ product }) => {
         </span>
         {isTopValue && (
           <span className="product-card-ai-badge">✨ AI TOP DEAL</span>
+        )}
+        {isExpiringSoon && (
+          <span className={`product-card-expiry-badge ${daysToExpiry <= 15 ? 'critical' : 'warning'}`} title={`Expires in ${daysToExpiry} days`}>
+            🚨 {daysToExpiry <= 0 ? 'EXPIRED' : daysToExpiry <= 15 ? 'CRITICAL EXPIRY' : 'EXPIRING SOON'}
+          </span>
         )}
         {discount && (
           <span className="product-card-discount">-{discount}% OFF</span>

@@ -67,6 +67,11 @@ const ProductDetail = () => {
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : null;
 
+  const daysToExpiry = product?.expiry_date
+    ? Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000)
+    : null;
+  const isExpiringSoon = daysToExpiry !== null && daysToExpiry <= 45;
+
   const totalPrice = (Number(product?.price) * orderQty).toFixed(2);
 
   const isOwnListing = user && product && user.id === product.user_id;
@@ -151,6 +156,26 @@ const ProductDetail = () => {
                 <span className="product-detail-category">
                   <Tag size={11} /> {product.category}
                 </span>
+                {isExpiringSoon && (
+                  <span
+                    className="product-detail-expiry-badge"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      letterSpacing: '0.5px',
+                      borderRadius: '3px',
+                      padding: '3px 8px',
+                      background: daysToExpiry <= 15 ? '#fef2f2' : '#fffbeb',
+                      color: daysToExpiry <= 15 ? '#b91c1c' : '#b45309',
+                      border: '1px solid ' + (daysToExpiry <= 15 ? '#b91c1c' : '#b45309'),
+                      marginRight: '8px'
+                    }}
+                    title={`Expires in ${daysToExpiry} days`}
+                  >
+                    🚨 {daysToExpiry <= 0 ? 'EXPIRED' : daysToExpiry <= 15 ? 'CRITICAL EXPIRY' : 'EXPIRING SOON'}
+                  </span>
+                )}
                 {discount && (
                   <span className="product-detail-discount-badge">
                     {discount}% OFF
@@ -230,6 +255,15 @@ const ProductDetail = () => {
                     <Calendar size={13} /> {formatDate(product.created_at)}
                   </span>
                 </div>
+                {product.expiry_date && (
+                  <div className="product-stat">
+                    <span className="product-stat-label">Expiry Date</span>
+                    <span className="product-stat-value" style={{ color: isExpiringSoon ? '#b91c1c' : 'var(--text-primary)', fontWeight: 'bold' }}>
+                      📅 {new Date(product.expiry_date).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {isExpiringSoon && ` (${daysToExpiry}d left)`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
