@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { estimateMarketability } from '../utils/aiEngine';
+import { analyzeDeadStock } from '../utils/gemini';
 import './ProductDetail.css';
 
 const ProductDetail = () => {
@@ -23,6 +23,9 @@ const ProductDetail = () => {
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
+  // Real Gemini AI assessment state
+  const [aiAssessment, setAiAssessment] = useState(null);
+  const [aiAssessmentLoading, setAiAssessmentLoading] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -36,6 +39,12 @@ const ProductDetail = () => {
 
         if (err) throw err;
         setProduct(data);
+        // Trigger Gemini AI assessment for this product
+        setAiAssessmentLoading(true);
+        analyzeDeadStock(data)
+          .then(result => setAiAssessment(result))
+          .catch(err => console.error('AI assessment error:', err))
+          .finally(() => setAiAssessmentLoading(false));
       } catch (err) {
         setError('Product not found or no longer available.');
         console.error('Product fetch error:', err);
@@ -171,26 +180,32 @@ const ProductDetail = () => {
                 </div>
               </div>
 
-              {(() => {
-                const diagnosis = estimateMarketability(product);
-                return (
-                  <div className="product-detail-ai-assessment">
-                    <div className="ai-assessment-header">
-                      <span className="ai-assessment-title">✨ AI Deal Assessment</span>
-                      <span className={`ai-assessment-score-pill score-${diagnosis.level.toLowerCase()}`}>
-                        Value Score: {diagnosis.score}%
-                      </span>
-                    </div>
-                    <p className="ai-assessment-text">
-                      {diagnosis.score >= 75
-                        ? `🔥 Exceptional Deal: This stock is priced at a major discount in ${product.condition} condition. High procurement recommendation.`
-                        : diagnosis.score >= 45
-                        ? `✅ Fair B2B Value: Good pricing relative to the item's ${product.condition} condition and category resale demand.`
-                        : `⚠️ High Depreciation: Consider negotiating the price further using the live chat drawer.`}
-                    </p>
-                  </div>
-                );
-              })()}
+              <div className="product-detail-ai-assessment">
+                <div className="ai-assessment-header">
+                  <span className="ai-assessment-title">✨ Gemini AI Deal Assessment</span>
+                  {aiAssessment && (
+                    <span className={`ai-assessment-score-pill score-${aiAssessment.level?.toLowerCase()}`}>
+                      Revival Score: {aiAssessment.score}%
+                    </span>
+                  )}
+                </div>
+                {aiAssessmentLoading ? (
+                  <p className="ai-assessment-text" style={{ fontStyle: 'italic', opacity: 0.7 }}>
+                    🤖 Gemini is assessing this deal...
+                  </p>
+                ) : aiAssessment ? (
+                  <>
+                    <p className="ai-assessment-text">{aiAssessment.summary}</p>
+                    {aiAssessment.tips && aiAssessment.tips.length > 0 && (
+                      <ul style={{ margin: '8px 0 0', paddingLeft: '16px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        {aiAssessment.tips.slice(0, 2).map((tip, i) => (
+                          <li key={i}>{tip}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : null}
+              </div>
 
               <div className="product-detail-stats">
                 <div className="product-stat">

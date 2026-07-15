@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageSquare } from 'lucide-react';
+import { X, Send, MessageSquare, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { suggestChatResponse } from '../utils/aiEngine';
+import { suggestNegotiationReply } from '../utils/gemini';
 import './ChatDrawer.css';
 
 const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, orderTitle }) => {
@@ -10,6 +10,8 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState(null);
   const [role, setRole] = useState('seller');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiActiveStyle, setAiActiveStyle] = useState(null);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -135,11 +137,28 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
     }
   };
 
-  const handleSuggestResponse = (style) => {
-    if (!product) return;
-    const lastMsgText = messages.length > 0 ? messages[messages.length - 1].text : '';
-    const suggestion = suggestChatResponse(lastMsgText, product, role, style);
-    setNewMsg(suggestion);
+  /**
+   * Real AI Copilot — calls Gemini with full conversation context
+   */
+  const handleSuggestResponse = async (style) => {
+    if (!product || aiLoading) return;
+    setAiLoading(true);
+    setAiActiveStyle(style);
+    try {
+      // Build conversation context with sender info
+      const contextMessages = messages.map(m => ({
+        text: m.text,
+        isMe: m.sender_id === currentUser.id
+      }));
+
+      const suggestion = await suggestNegotiationReply(contextMessages, product, role, style);
+      setNewMsg(suggestion);
+    } catch (err) {
+      console.error('AI copilot error:', err);
+    } finally {
+      setAiLoading(false);
+      setAiActiveStyle(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -194,10 +213,40 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
         {/* AI Copilot Suggestion Bar */}
         {product && (
           <div className="chat-drawer-ai-copilot">
-            <span className="copilot-lbl">✨ AI Copilot:</span>
-            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('counter')}>Counter</button>
-            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('firm')}>Firm</button>
-            <button type="button" className="copilot-btn" onClick={() => handleSuggestResponse('bundle')}>Bulk Bundle</button>
+            <span className="copilot-lbl">
+              <Sparkles size={12} style={{ display: 'inline', marginRight: 4 }} />
+              Gemini AI Copilot:
+            </span>
+            <button
+              type="button"
+              className={`copilot-btn ${aiActiveStyle === 'counter' ? 'copilot-btn-loading' : ''}`}
+              onClick={() => handleSuggestResponse('counter')}
+              disabled={aiLoading}
+            >
+              {aiLoading && aiActiveStyle === 'counter' ? <Loader2 size={12} className="spin" /> : null}
+              Counter Offer
+            </button>
+            <button
+              type="button"
+              className={`copilot-btn ${aiActiveStyle === 'firm' ? 'copilot-btn-loading' : ''}`}
+              onClick={() => handleSuggestResponse('firm')}
+              disabled={aiLoading}
+            >
+              {aiLoading && aiActiveStyle === 'firm' ? <Loader2 size={12} className="spin" /> : null}
+              Hold Firm
+            </button>
+            <button
+              type="button"
+              className={`copilot-btn ${aiActiveStyle === 'bundle' ? 'copilot-btn-loading' : ''}`}
+              onClick={() => handleSuggestResponse('bundle')}
+              disabled={aiLoading}
+            >
+              {aiLoading && aiActiveStyle === 'bundle' ? <Loader2 size={12} className="spin" /> : null}
+              Bulk Bundle
+            </button>
+            {aiLoading && (
+              <span className="copilot-thinking">Gemini is thinking...</span>
+            )}
           </div>
         )}
 
@@ -205,12 +254,13 @@ const ChatDrawer = ({ orderId, isOpen, onClose, currentUser, otherPartyName, ord
         <form onSubmit={handleSendMessage} className="chat-drawer-input-form">
           <input
             type="text"
-            placeholder="Type your message..."
+            placeholder={aiLoading ? 'Gemini AI is writing your reply...' : 'Type your message...'}
             value={newMsg}
             onChange={(e) => setNewMsg(e.target.value)}
+            disabled={aiLoading}
             required
           />
-          <button type="submit" className="chat-send-btn" disabled={!newMsg.trim()}>
+          <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || aiLoading}>
             <Send size={16} />
           </button>
         </form>

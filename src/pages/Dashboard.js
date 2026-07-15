@@ -8,14 +8,14 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
 import ChatDrawer from '../components/ChatDrawer';
+import { generateForecastData, estimateMarketability } from '../utils/aiEngine';
 import {
-  estimateMarketability,
-  suggestDynamicPrice,
-  generateForecastData,
-  generateBusinessProposal,
-  optimizeListing,
-  generateLiquidationStrategies
-} from '../utils/aiEngine';
+  analyzeDeadStock,
+  getDynamicPriceSuggestion,
+  generateOptimizedListing,
+  generateLiquidationStrategies,
+  generateSalesPitch
+} from '../utils/gemini';
 import './Dashboard.css';
 
 const CATEGORIES = [
@@ -69,6 +69,13 @@ const Dashboard = () => {
   const [forecastData, setForecastData] = useState([]);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [diagnosisTab, setDiagnosisTab] = useState('assessment');
+  // Real Gemini AI results
+  const [aiDiagnosisResult, setAiDiagnosisResult] = useState(null);
+  const [aiDiagnosisLoading, setAiDiagnosisLoading] = useState(false);
+  const [aiPriceResult, setAiPriceResult] = useState(null);
+  const [aiStrategies, setAiStrategies] = useState([]);
+  const [aiStrategiesLoading, setAiStrategiesLoading] = useState(false);
+  const [aiPitchLoading, setAiPitchLoading] = useState(false);
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -274,9 +281,10 @@ const Dashboard = () => {
     }
   };
 
-  // Create a pitch proposal order and open live chat
+  // Create a pitch proposal order and open live chat with a real Gemini-written message
   const handlePitchStock = async (buyer, product) => {
     if (!product || !buyer) return;
+    setAiPitchLoading(true);
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -285,7 +293,7 @@ const Dashboard = () => {
           seller_id: user.id,
           buyer_id: buyer.id === 'mock-buyer-1' || buyer.id === 'mock-buyer-2' || buyer.id === 'mock-buyer-3' ? null : buyer.id,
           buyer_name: buyer.full_name,
-          buyer_email: buyer.email || 'ritu@gmail.com',
+          buyer_email: buyer.email || 'buyer@bulkbazar.in',
           quantity: Math.min(10, product.quantity),
           total_price: Number(product.price) * Math.min(10, product.quantity),
           status: 'pending',
@@ -296,25 +304,26 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      // 2. Generate and insert the first AI message in the chat history
-      const pitchMsgText = generateBusinessProposal(product, buyer);
+      // Generate a real Gemini-written personalized pitch
+      const pitchMsgText = await generateSalesPitch(product, buyer);
       await supabase
         .from('messages')
         .insert([{
           order_id: data.id,
           sender_id: user.id,
-          message_text: pitchMsgText,
+          text: pitchMsgText,
           read: false
         }]);
 
       setShowMatchModal(false);
-      // Wait a brief moment to let DB propagate
       setTimeout(async () => {
         await fetchOrders();
         setActiveChatOrder(data);
       }, 500);
     } catch (err) {
       alert('Failed to pitch stock: ' + err.message);
+    } finally {
+      setAiPitchLoading(false);
     }
   };
 
@@ -407,20 +416,40 @@ const Dashboard = () => {
     setForecastData(generateForecastData(selectedForecastCategory));
   }, [selectedForecastCategory]);
 
-  const openDiagnosisModal = (product) => {
+  const openDiagnosisModal = async (product) => {
     setSelectedDiagnosisProduct(product);
     setDiagnosisTab('assessment');
+    setAiDiagnosisResult(null);
+    setAiPriceResult(null);
+    setAiStrategies([]);
     setShowDiagnosisModal(true);
+    // Fetch from Gemini in parallel
+    setAiDiagnosisLoading(true);
+    setAiStrategiesLoading(true);
+    try {
+      const [diagnosis, pricing, strategies] = await Promise.all([
+        analyzeDeadStock(product),
+        getDynamicPriceSuggestion(product),
+        generateLiquidationStrategies(product)
+      ]);
+      setAiDiagnosisResult(diagnosis);
+      setAiPriceResult(pricing);
+      setAiStrategies(strategies);
+    } catch (err) {
+      console.error('Gemini diagnosis error:', err);
+    } finally {
+      setAiDiagnosisLoading(false);
+      setAiStrategiesLoading(false);
+    }
   };
 
   const handleApplyDynamicPrice = async () => {
-    if (!selectedDiagnosisProduct) return;
+    if (!selectedDiagnosisProduct || !aiPriceResult) return;
     try {
-      const suggested = suggestDynamicPrice(selectedDiagnosisProduct);
       const { error } = await supabase
         .from('products')
         .update({
-          price: suggested,
+          price: aiPriceResult.price,
           updated_at: new Date().toISOString()
         })
         .eq('id', selectedDiagnosisProduct.id);
@@ -435,22 +464,26 @@ const Dashboard = () => {
     }
   };
 
-  const handleOptimizeListing = () => {
+  const handleOptimizeListing = async () => {
     if (!productForm.name.trim()) {
       setFormError('Please enter a product name first before optimizing.');
       return;
     }
     setIsOptimizing(true);
-    setTimeout(() => {
-      const optimized = optimizeListing(productForm.name, productForm.description, productForm.category);
+    setFormError('');
+    try {
+      const optimized = await generateOptimizedListing(productForm.name, productForm.description, productForm.category);
       setProductForm(prev => ({
         ...prev,
         name: optimized.name,
         description: optimized.description
       }));
+    } catch (err) {
+      setFormError('AI optimization failed. Please try again.');
+      console.error('Gemini listing optimization error:', err);
+    } finally {
       setIsOptimizing(false);
-      setFormError('');
-    }, 800);
+    }
   };
 
   useEffect(() => {
@@ -1759,91 +1792,94 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              {(() => {
-                const diagnosis = estimateMarketability(selectedDiagnosisProduct);
-                const suggestedPrice = suggestDynamicPrice(selectedDiagnosisProduct);
-                let scoreColor = '#dc2626';
-                if (diagnosis.score >= 80) scoreColor = '#059669';
-                else if (diagnosis.score >= 45) scoreColor = '#d97706';
-
-                if (diagnosisTab === 'assessment') {
+              {diagnosisTab === 'assessment' ? (
+                aiDiagnosisLoading ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>
+                    <div style={{ marginBottom: '12px', fontSize: '24px' }}>✨</div>
+                    Gemini AI is analyzing this product...<br />
+                    <span style={{ fontSize: '11px' }}>Evaluating market demand, pricing index &amp; revival potential</span>
+                  </div>
+                ) : aiDiagnosisResult ? (() => {
+                  const d = aiDiagnosisResult;
+                  let scoreColor = '#dc2626';
+                  if (d.score >= 80) scoreColor = '#059669';
+                  else if (d.score >= 45) scoreColor = '#d97706';
                   return (
                     <div className="ai-diagnosis-layout">
-                      {/* Score Circle & description */}
                       <div className="ai-diagnosis-score-section">
                         <div className="ai-diagnosis-score-circle" style={{ borderColor: scoreColor, color: scoreColor }}>
-                          {diagnosis.score}%
+                          {d.score}%
                         </div>
                         <div className="ai-diagnosis-title-wrapper">
                           <span className="ai-diagnosis-score-title" style={{ color: scoreColor }}>
-                            {diagnosis.level} Revival Score
+                            {d.level} Revival Potential
                           </span>
-                          <span className="ai-diagnosis-score-desc">
-                            Based on pricing reselling index, image visibility, and category buyer matches.
+                          <span className="ai-diagnosis-score-desc" style={{ fontStyle: 'italic', marginTop: 4 }}>
+                            {d.summary}
                           </span>
                         </div>
                       </div>
 
-                      {/* Dynamic Price suggestions */}
-                      <div className="ai-diagnosis-section-title">Dynamic Pricing Recommendation</div>
-                      <div className="ai-dynamic-pricing-box">
-                        <div className="ai-pricing-label-group">
-                          <span className="ai-pricing-label">Optimized Resale Price</span>
-                          <span className="ai-pricing-sub">Suggested to attract matching buyers</span>
-                        </div>
-                        <div className="ai-pricing-value-group">
-                          <span className="ai-pricing-value">{formatCurrency(suggestedPrice)}</span>
-                          {Number(selectedDiagnosisProduct.price) !== suggestedPrice && (
-                            <button
-                              type="button"
-                              className="ai-pricing-apply-btn"
-                              onClick={handleApplyDynamicPrice}
-                            >
-                              Apply Dynamic Price
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                      {aiPriceResult && (
+                        <>
+                          <div className="ai-diagnosis-section-title">🤖 Gemini Dynamic Pricing</div>
+                          <div className="ai-dynamic-pricing-box">
+                            <div className="ai-pricing-label-group">
+                              <span className="ai-pricing-label">AI Recommended Price</span>
+                              <span className="ai-pricing-sub" style={{ fontStyle: 'italic' }}>{aiPriceResult.rationale}</span>
+                            </div>
+                            <div className="ai-pricing-value-group">
+                              <span className="ai-pricing-value">{formatCurrency(aiPriceResult.price)}</span>
+                              {Number(selectedDiagnosisProduct.price) !== aiPriceResult.price && (
+                                <button type="button" className="ai-pricing-apply-btn" onClick={handleApplyDynamicPrice}>
+                                  Apply Price
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
 
-                      {/* Optimization Tips */}
-                      <div className="ai-diagnosis-section-title">Revival Recommendations</div>
-                      {diagnosis.tips.length === 0 ? (
-                        <p style={{ fontSize: '13px', margin: 0, color: 'var(--text-secondary)' }}>
-                          🎉 Your listing is fully optimized for reselling! Keep it active to wait for buyers.
-                        </p>
-                      ) : (
+                      <div className="ai-diagnosis-section-title">💡 Gemini Revival Tips</div>
+                      {d.tips && d.tips.length > 0 ? (
                         <ul className="ai-tips-list">
-                          {diagnosis.tips.map((tip, index) => (
-                            <li key={index}>
-                              <span className="ai-tips-bullet">·</span>
-                              <span>{tip}</span>
-                            </li>
+                          {d.tips.map((tip, i) => (
+                            <li key={i}><span className="ai-tips-bullet">·</span><span>{tip}</span></li>
                           ))}
                         </ul>
+                      ) : (
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                          🎉 This listing is well-optimized. Keep it active to attract buyers.
+                        </p>
                       )}
                     </div>
                   );
-                } else {
-                  return (
-                    <div className="ai-strategies-layout" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <div className="ai-diagnosis-section-title">AI Generated Liquidation Options</div>
-                      {generateLiquidationStrategies(selectedDiagnosisProduct).map((strat, idx) => (
-                        <div key={idx} className="ai-strategy-card" style={{ padding: '14px', background: 'var(--bg-section)', border: '2px solid var(--border)', borderRadius: '4px', boxShadow: '2px 2px 0px var(--border)' }}>
-                          <h4 style={{ margin: '0 0 6px', fontFamily: 'var(--font-heading)', fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                            {strat.title}
-                          </h4>
-                          <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                            {strat.description}
-                          </p>
-                        </div>
-                      ))}
-                      <div className="form-hint" style={{ fontSize: '11px', marginTop: '4px' }}>
-                        💡 Strategies simulated by matching B2B categories to local distribution databases and upcycling industrial sectors.
+                })() : null
+              ) : (
+                aiStrategiesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>
+                    <div style={{ marginBottom: '12px', fontSize: '24px' }}>📋</div>
+                    Gemini is generating liquidation strategies...
+                  </div>
+                ) : (
+                  <div className="ai-strategies-layout" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div className="ai-diagnosis-section-title">🤖 Gemini AI Liquidation Strategies</div>
+                    {aiStrategies.map((strat, idx) => (
+                      <div key={idx} className="ai-strategy-card" style={{ padding: '14px', background: 'var(--bg-section)', border: '2px solid var(--border)', borderRadius: '4px', boxShadow: '2px 2px 0px var(--border)' }}>
+                        <h4 style={{ margin: '0 0 6px', fontFamily: 'var(--font-heading)', fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                          {strat.title}
+                        </h4>
+                        <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                          {strat.description}
+                        </p>
                       </div>
+                    ))}
+                    <div className="form-hint" style={{ fontSize: '11px', marginTop: '4px' }}>
+                      ✨ Strategies generated by Google Gemini 1.5 Flash based on this product's specific attributes.
                     </div>
-                  );
-                }
-              })()}
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -1900,8 +1936,9 @@ const Dashboard = () => {
                     <button
                       className="buyer-item-pitch-btn"
                       onClick={() => handlePitchStock(buyer, showMatchModal.product)}
+                      disabled={aiPitchLoading}
                     >
-                      Pitch Stock
+                      {aiPitchLoading ? '✨ Writing pitch...' : '✨ Pitch with AI'}
                     </button>
                   </div>
                 </div>
