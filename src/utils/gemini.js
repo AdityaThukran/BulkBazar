@@ -67,7 +67,7 @@ export async function analyzeDeadStock(product, salesData = { orderCount: 0, tot
   const sys = `You are BulkBazar's AI Dead Stock Analyst — an expert in B2B inventory liquidation for the Indian wholesale market.
 Analyze the product data and sales history to return ONLY valid JSON (no markdown, no extra text) with this exact structure:
 {
-  "score": <integer 0-100 representing B2B revival potential based on sales activity and remaining stock>,
+  "score": <integer 0-100 representing B2B revival potential based on sales activity and remaining stock. If the product has 0 sales or very low sales velocity relative to the days listed, the score must decay accordingly, going all the way down to 0% for long-standing unsold warehouse stock>,
   "level": <"High" | "Medium" | "Low">,
   "summary": <2-3 sentence expert analysis of this specific product's dead stock situation, sales velocity, and market potential>,
   "tips": [<3 to 5 specific, actionable revival tips tailored to THIS exact product>]
@@ -90,17 +90,32 @@ Sales History:
     return await callGemini(sys, userPrompt, true);
   } catch (e) {
     console.error('analyzeDeadStock error:', e.message);
-    let score = 55;
-    if (salesData.totalSold > 0) {
-      score += Math.min(25, Math.round((salesData.totalSold / (product.quantity + salesData.totalSold)) * 40));
-    } else if (product.quantity === 0) {
-      score = 100;
+    let score = 45; // Base starting score for new listings
+    const days = product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 0;
+    
+    if (product.quantity === 0 && salesData.totalSold > 0) {
+      score = 100; // Fully cleared/revived
     } else {
-      const days = product.created_at ? Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000) : 0;
-      score = Math.max(30, score - Math.floor(days / 5));
+      // Boost from active sales
+      if (salesData.totalSold > 0) {
+        const salesRatio = salesData.totalSold / (Number(product.quantity) + salesData.totalSold);
+        score += Math.round(salesRatio * 50);
+      }
+      
+      // Decay over time
+      if (salesData.totalSold === 0) {
+        // Zero sales decay: drops by ~1% every 2 days listed
+        score -= Math.floor(days / 2);
+      } else {
+        const salesPerDay = salesData.totalSold / Math.max(1, days);
+        if (salesPerDay < 0.1) {
+          // Low sales decay: drops by ~1% every 5 days listed
+          score -= Math.floor(days / 5);
+        }
+      }
     }
-    score = Math.min(99, Math.max(10, score));
-    const level = score >= 75 ? 'High' : score >= 45 ? 'Medium' : 'Low';
+    score = Math.min(99, Math.max(0, score));
+    const level = score >= 75 ? 'High' : score >= 40 ? 'Medium' : 'Low';
     
     return {
       score,

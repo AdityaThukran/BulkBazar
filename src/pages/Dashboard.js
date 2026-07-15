@@ -105,6 +105,7 @@ const Dashboard = () => {
   const [unreadMessages, setUnreadMessages] = useState({});
   const [aiMatches, setAiMatches] = useState([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
+  const [ordersSubTab, setOrdersSubTab] = useState('orders'); // 'orders' or 'pitches'
 
   // Stats
   const [selectedSellerShop, setSelectedSellerShop] = useState(null);
@@ -437,9 +438,9 @@ const Dashboard = () => {
         
         const ords = data || [];
         setStats({
-          totalProducts: ords.length,
-          totalValue: ords.reduce((sum, o) => sum + Number(o.total_price), 0),
-          lowStock: ords.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length,
+          totalProducts: ords.filter(o => o.status !== 'pitch').length,
+          totalValue: ords.filter(o => o.status !== 'pitch').reduce((sum, o) => sum + Number(o.total_price), 0),
+          lowStock: ords.filter(o => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'pitch').length,
           activeCount: ords.filter(o => o.status === 'delivered').length,
           pendingOrders: 0
         });
@@ -569,7 +570,7 @@ const Dashboard = () => {
           buyer_email: buyer.email || 'buyer@bulkbazar.in',
           quantity: Math.min(10, product.quantity),
           total_price: Number(product.price) * Math.min(10, product.quantity),
-          status: 'pending',
+          status: 'pitch',
           notes: `AI Match Sourcing Pitch: Seller initiated trade proposal.`
         }])
         .select()
@@ -1563,7 +1564,7 @@ const Dashboard = () => {
                     </div>
                   ) : (
                     <div className="recent-products-list">
-                      {orders.slice(0, 5).map(order => (
+                      {orders.filter(o => o.status !== 'pitch').slice(0, 5).map(order => (
                         <div key={order.id} className="recent-product-item">
                           <div className="recent-product-info">
                             <span className="recent-product-name">{order.products?.name || '—'}</span>
@@ -1915,17 +1916,65 @@ const Dashboard = () => {
           {/* ======== ORDERS TAB ======== */}
           {activeTab === 'orders' && (
             <div className="orders-tab">
+              {/* Sub-tab navigation to separate Pitches and Orders */}
+              <div className="orders-sub-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                <button
+                  type="button"
+                  className={`sub-tab-btn ${ordersSubTab === 'orders' ? 'active' : ''}`}
+                  onClick={() => setOrdersSubTab('orders')}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    fontFamily: 'var(--font-mono)',
+                    border: '2px solid var(--border)',
+                    boxShadow: ordersSubTab === 'orders' ? 'none' : '2px 2px 0px var(--border)',
+                    background: ordersSubTab === 'orders' ? 'var(--accent)' : 'var(--bg-white)',
+                    transform: ordersSubTab === 'orders' ? 'translate(2px, 2px)' : 'none',
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  📦 {profile?.role === 'buyer' ? 'My Orders' : 'Active Orders'} ({orders.filter(o => o.status !== 'pitch').length})
+                </button>
+                <button
+                  type="button"
+                  className={`sub-tab-btn ${ordersSubTab === 'pitches' ? 'active' : ''}`}
+                  onClick={() => setOrdersSubTab('pitches')}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    fontFamily: 'var(--font-mono)',
+                    border: '2px solid var(--border)',
+                    boxShadow: ordersSubTab === 'pitches' ? 'none' : '2px 2px 0px var(--border)',
+                    background: ordersSubTab === 'pitches' ? 'var(--accent)' : 'var(--bg-white)',
+                    transform: ordersSubTab === 'pitches' ? 'translate(2px, 2px)' : 'none',
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  ✨ AI Trade Proposals ({orders.filter(o => o.status === 'pitch').length})
+                </button>
+              </div>
+
               {ordersLoading ? (
                 <div className="inventory-loading">Loading orders...</div>
-              ) : orders.length === 0 ? (
+              ) : orders.filter(o => ordersSubTab === 'pitches' ? o.status === 'pitch' : o.status !== 'pitch').length === 0 ? (
                 <div className="empty-state">
                   <ClipboardList size={40} />
                   <p>
-                    {profile?.role === 'buyer'
-                      ? "You haven't placed any orders yet. Visit the marketplace to place an order."
-                      : "No orders yet. Once buyers place orders on your products, they will appear here."}
+                    {ordersSubTab === 'pitches'
+                      ? (profile?.role === 'buyer' 
+                        ? 'No active AI sourcing proposals received from sellers yet.' 
+                        : 'No AI trade pitches initiated yet. Go to AI Insights or Overview to pitch to buyers.')
+                      : (profile?.role === 'buyer'
+                        ? "You haven't placed any orders yet. Visit the marketplace to place an order."
+                        : "No active orders yet. Once buyers place orders or accept pitches, they will appear here.")}
                   </p>
-                  {profile?.role === 'buyer' && (
+                  {profile?.role === 'buyer' && ordersSubTab === 'orders' && (
                     <Link to="/marketplace" className="quick-action-btn" style={{ textDecoration: 'none', display: 'inline-flex', alignSelf: 'center' }}>
                       Browse Marketplace
                     </Link>
@@ -1942,86 +1991,111 @@ const Dashboard = () => {
                         <th>Total</th>
                         <th>Date</th>
                         <th>Status</th>
-                        <th>Chat</th>
-                        {profile?.role !== 'buyer' && <th>Update</th>}
+                        <th>Chat & Actions</th>
+                        {profile?.role !== 'buyer' && ordersSubTab === 'orders' && <th>Update</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map(order => (
-                        <tr key={order.id}>
-                          <td>
-                            <div className="product-name-cell">
-                              <span className="product-name">
-                                {profile?.role === 'buyer'
-                                  ? (order.products?.profiles?.full_name || 'Seller')
-                                  : order.buyer_name}
-                              </span>
-                              <span className="product-desc">
-                                {profile?.role === 'buyer'
-                                  ? (order.products?.profiles?.company || 'Manufacturer')
-                                  : order.buyer_email}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="product-name-cell">
-                              <span className="product-name">{order.products?.name || '—'}</span>
-                              <span className="product-desc">{order.products?.category || ''}</span>
-                            </div>
-                          </td>
-                          <td className="price-cell">{order.quantity} {order.products?.unit || ''}</td>
-                          <td className="price-cell">{formatCurrency(order.total_price)}</td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                            {new Date(order.created_at).toLocaleDateString('en-IN')}
-                          </td>
-                          <td>
-                            <span className={`order-status-badge order-status-${order.status}`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                className={`chat-trigger-btn ${unreadMessages[order.id] ? 'has-unread' : ''}`}
-                                title="Open Chat"
-                                onClick={() => setActiveChatOrder(order)}
-                              >
-                                <MessageSquare size={14} /> Chat
-                                {unreadMessages[order.id] > 0 && (
-                                  <span className="chat-btn-badge">
-                                    {unreadMessages[order.id]}
-                                  </span>
-                                )}
-                              </button>
-
-                              {profile?.role === 'buyer' && order.products?.profiles?.id && (
-                                <button
-                                  className="chat-trigger-btn view-shop-btn"
-                                  title="View Seller's Active Listings"
-                                  onClick={() => setSelectedSellerShop(order.products.profiles)}
-                                >
-                                  <Store size={14} /> Shop
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          {profile?.role !== 'buyer' && (
+                      {orders
+                        .filter(o => ordersSubTab === 'pitches' ? o.status === 'pitch' : o.status !== 'pitch')
+                        .map(order => (
+                          <tr key={order.id}>
                             <td>
-                              <select
-                                className="order-status-select"
-                                value={order.status}
-                                onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                              </select>
+                              <div className="product-name-cell">
+                                <span className="product-name">
+                                  {profile?.role === 'buyer'
+                                    ? (order.products?.profiles?.full_name || 'Seller')
+                                    : order.buyer_name}
+                                </span>
+                                <span className="product-desc">
+                                  {profile?.role === 'buyer'
+                                    ? (order.products?.profiles?.company || 'Manufacturer')
+                                    : order.buyer_email}
+                                </span>
+                              </div>
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td>
+                              <div className="product-name-cell">
+                                <span className="product-name">{order.products?.name || '—'}</span>
+                                <span className="product-desc">{order.products?.category || ''}</span>
+                              </div>
+                            </td>
+                            <td className="price-cell">{order.quantity} {order.products?.unit || ''}</td>
+                            <td className="price-cell">{formatCurrency(order.total_price)}</td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              {new Date(order.created_at).toLocaleDateString('en-IN')}
+                            </td>
+                            <td>
+                              <span className={`order-status-badge order-status-${order.status}`} style={{ textTransform: 'uppercase' }}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  className={`chat-trigger-btn ${unreadMessages[order.id] ? 'has-unread' : ''}`}
+                                  title="Open Chat"
+                                  onClick={() => setActiveChatOrder(order)}
+                                >
+                                  <MessageSquare size={14} /> Chat
+                                  {unreadMessages[order.id] > 0 && (
+                                    <span className="chat-btn-badge">
+                                      {unreadMessages[order.id]}
+                                    </span>
+                                  )}
+                                </button>
+
+                                {profile?.role === 'buyer' && order.status === 'pitch' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="chat-trigger-btn"
+                                      style={{ background: '#22c55e', color: 'white', borderColor: '#16a34a', fontWeight: 'bold' }}
+                                      onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="chat-trigger-btn"
+                                      style={{ background: '#ef4444', color: 'white', borderColor: '#dc2626', fontWeight: 'bold' }}
+                                      onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
+                                    >
+                                      Decline
+                                    </button>
+                                  </>
+                                )}
+
+                                {profile?.role === 'buyer' && order.products?.profiles?.id && (
+                                  <button
+                                    type="button"
+                                    className="chat-trigger-btn view-shop-btn"
+                                    title="View Seller's Active Listings"
+                                    onClick={() => setSelectedSellerShop(order.products.profiles)}
+                                  >
+                                    <Store size={14} /> Shop
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            {profile?.role !== 'buyer' && ordersSubTab === 'orders' && (
+                              <td>
+                                <select
+                                  className="order-status-select"
+                                  value={order.status}
+                                  onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="confirmed">Confirmed</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="delivered">Delivered</option>
+                                  <option value="cancelled">Cancelled</option>
+                                </select>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
