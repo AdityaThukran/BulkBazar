@@ -457,10 +457,10 @@ const Dashboard = () => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .delete()
+        .update({ read: true })
         .eq('user_id', user.id);
       if (error) throw error;
-      setNotifications([]);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (err) {
       console.error('Error clearing notifications:', err);
@@ -1193,12 +1193,12 @@ const Dashboard = () => {
                   </div>
 
                   <div className="dropdown-list" style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
-                    {notifications.length === 0 ? (
+                    {notifications.filter(n => !n.read).length === 0 ? (
                       <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
                         No alerts or suggestions yet.
                       </div>
                     ) : (
-                      notifications.map(notif => {
+                      notifications.filter(n => !n.read).map(notif => {
                         let icon = '🔔';
                         let cardStyle = {
                           padding: '10px',
