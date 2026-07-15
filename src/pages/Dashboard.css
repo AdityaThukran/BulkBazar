@@ -2665,6 +2665,58 @@
   width: 100%;
 }
 
+/* Topbar Notification Bell & Dropdown Styles */
+.topbar-bell-btn {
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.topbar-bell-btn:hover {
+  transform: scale(1.05);
+  color: var(--accent-dark);
+}
+
+.topbar-bell-btn:active {
+  transform: scale(0.95);
+}
+
+.notifications-dropdown {
+  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 4px 4px 0px #121212 !important;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-item {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.notification-item:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0px #121212 !important;
+}
+
+.notification-item.unread.type-warning {
+  border-left: 4px solid #f87171 !important;
+}
+
+.notification-item.unread.type-ai {
+  border-left: 4px solid #c084fc !important;
+}
+
+.notification-item.read {
+  opacity: 0.85;
+}
+
+
 
 
 

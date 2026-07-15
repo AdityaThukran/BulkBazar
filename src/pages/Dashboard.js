@@ -3,7 +3,8 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, UserCircle, LogOut, Plus, Pencil, Trash2,
   Search, X, Save, AlertTriangle, TrendingUp, Archive, IndianRupee,
-  ChevronDown, ShoppingCart, ClipboardList, Store, MessageSquare, Brain, Camera
+  ChevronDown, ShoppingCart, ClipboardList, Store, MessageSquare, Brain, Camera,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
@@ -15,7 +16,8 @@ import {
   generateOptimizedListing,
   generateLiquidationStrategies,
   generateSalesPitch,
-  getExpiryPriceDecayCurve
+  getExpiryPriceDecayCurve,
+  generateMarketRateSuggestion
 } from '../utils/gemini';
 import './Dashboard.css';
 
@@ -79,6 +81,11 @@ const Dashboard = () => {
   const [aiPitchLoading, setAiPitchLoading] = useState(false);
   const [aiExpiryResult, setAiExpiryResult] = useState(null);
   const [aiExpiryLoading, setAiExpiryLoading] = useState(false);
+
+  // Notification states
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -161,6 +168,87 @@ const Dashboard = () => {
     }
   }, [user, profile]);
 
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setNotifications(data || []);
+      setUnreadCount((data || []).filter(n => !n.read).length);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  }, [user]);
+
+  const syncNotifications = useCallback(async (currentProducts, existingNotifications) => {
+    if (!user || !currentProducts || currentProducts.length === 0) return;
+    
+    const newNotificationsToInsert = [];
+    const notificationSet = new Set(
+      existingNotifications.map(n => `${n.product_id}_${n.type}`)
+    );
+
+    for (const product of currentProducts) {
+      // 1. Expiry Check
+      if (product.expiry_date && (product.category === 'FMCG' || product.category === 'Pharma')) {
+        const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
+        
+        if (daysToExpiry <= 45) {
+          const key = `${product.id}_warning`;
+          if (!notificationSet.has(key)) {
+            const isExpired = daysToExpiry <= 0;
+            newNotificationsToInsert.push({
+              user_id: user.id,
+              product_id: product.id,
+              title: isExpired ? `🚨 Expired: ${product.name}` : `⏰ Expiring Soon: ${product.name}`,
+              message: isExpired
+                ? `This lot has expired (${Math.abs(daysToExpiry)} days ago). Click here to apply AI salvage clearance pricing.`
+                : `This lot expires in ${daysToExpiry} days (${new Date(product.expiry_date).toLocaleDateString('en-IN')}). Click to see AI Expiry Alarm.`,
+              type: 'warning',
+              read: false
+            });
+            notificationSet.add(key);
+          }
+        }
+      }
+
+      // 2. AI Market Advice Check
+      const keyAi = `${product.id}_ai`;
+      if (!notificationSet.has(keyAi)) {
+        try {
+          const suggestion = await generateMarketRateSuggestion(product);
+          newNotificationsToInsert.push({
+            user_id: user.id,
+            product_id: product.id,
+            title: suggestion.title || `💡 AI Pricing Strategy`,
+            message: suggestion.message || `Optimize pricing for ${product.name} to attract active buyers.`,
+            type: 'ai',
+            read: false
+          });
+          notificationSet.add(keyAi);
+        } catch (err) {
+          console.error('Failed to generate market rate suggestion:', err);
+        }
+      }
+    }
+
+    if (newNotificationsToInsert.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('notifications')
+          .insert(newNotificationsToInsert);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Error inserting synced notifications:', err);
+      }
+    }
+  }, [user]);
+
   // Fetch products
   const fetchProducts = useCallback(async () => {
     if (!user) return;
@@ -176,6 +264,32 @@ const Dashboard = () => {
       setProducts(data || []);
       await fetchAIMatches(data || []);
 
+      // Fetch existing notifications to check for duplicates
+      const { data: existingNotifs, error: notifErr } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (!notifErr) {
+        setNotifications(existingNotifs || []);
+        setUnreadCount((existingNotifs || []).filter(n => !n.read).length);
+
+        // Run on-the-fly sync for expiry warnings & AI pricing suggestions
+        await syncNotifications(data || [], existingNotifs || []);
+
+        // Re-fetch notifications after sync to load newly created ones
+        const { data: updatedNotifs, error: reloadErr } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (!reloadErr) {
+          setNotifications(updatedNotifs || []);
+          setUnreadCount((updatedNotifs || []).filter(n => !n.read).length);
+        }
+      }
+
       // Calculate stats
       const prods = data || [];
       setStats(prev => ({
@@ -190,7 +304,7 @@ const Dashboard = () => {
     } finally {
       setProductsLoading(false);
     }
-  }, [user, fetchAIMatches]);
+  }, [user, fetchAIMatches, syncNotifications]);
 
   // Fetch orders
   const fetchOrders = useCallback(async () => {
@@ -235,6 +349,48 @@ const Dashboard = () => {
       setOrdersLoading(false);
     }
   }, [user, profile]);
+
+  const markNotificationAsRead = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', id);
+      if (error) throw error;
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    await markNotificationAsRead(notif.id);
+    setShowNotificationsDropdown(false);
+    if (notif.product_id) {
+      const matchedProduct = products.find(p => p.id === notif.product_id);
+      if (matchedProduct) {
+        openDiagnosisModal(matchedProduct);
+      }
+    }
+  };
+
+
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -370,7 +526,8 @@ const Dashboard = () => {
   useEffect(() => {
     fetchProducts();
     fetchOrders();
-  }, [fetchProducts, fetchOrders, profile]);
+    fetchNotifications();
+  }, [fetchProducts, fetchOrders, fetchNotifications, profile]);
 
   // Realtime unread messages count listener
   useEffect(() => {
@@ -851,8 +1008,168 @@ const Dashboard = () => {
             {activeTab === 'orders' && (profile?.role === 'buyer' ? 'My Orders' : 'Incoming Orders')}
             {activeTab === 'profile' && 'Profile Settings'}
           </h2>
-          <div className="topbar-user-badge">
-            {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+          <div className="topbar-right-section" style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative' }}>
+            {/* Notification Bell */}
+            <div className="notifications-bell-container" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="topbar-bell-btn"
+                onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-primary)',
+                  position: 'relative',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  outline: 'none'
+                }}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="bell-badge" style={{
+                    position: 'absolute',
+                    top: '-2px',
+                    right: '-2px',
+                    background: '#dc2626',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    fontSize: '9px',
+                    fontWeight: 'bold',
+                    padding: '2px 5px',
+                    border: '1px solid var(--border)',
+                    fontFamily: 'var(--font-mono)'
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {showNotificationsDropdown && (
+                <div className="notifications-dropdown card" style={{
+                  position: 'absolute',
+                  top: '40px',
+                  right: '0',
+                  width: '320px',
+                  maxHeight: '400px',
+                  background: 'var(--bg-white)',
+                  border: '2px solid var(--border)',
+                  boxShadow: '4px 4px 0px var(--border)',
+                  borderRadius: '4px',
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div className="dropdown-header" style={{
+                    padding: '12px 16px',
+                    borderBottom: '2px solid var(--border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'var(--bg-section)'
+                  }}>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: '800', fontSize: '13px', textTransform: 'uppercase' }}>Alerts &amp; Suggestions</span>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllNotificationsAsRead}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#2563eb',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '9px',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="dropdown-list" style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+                        No alerts or suggestions yet.
+                      </div>
+                    ) : (
+                      notifications.map(notif => {
+                        let icon = '🔔';
+                        let cardStyle = {
+                          padding: '10px',
+                          border: '1.5px solid var(--border)',
+                          borderRadius: '4px',
+                          marginBottom: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          gap: '10px',
+                          background: notif.read ? 'transparent' : 'rgba(37, 99, 235, 0.03)',
+                          transition: 'all 0.15s ease'
+                        };
+
+                        if (notif.type === 'warning') {
+                          icon = '🚨';
+                          if (!notif.read) cardStyle.borderColor = '#f87171';
+                        } else if (notif.type === 'ai') {
+                          icon = '✨';
+                          if (!notif.read) {
+                            cardStyle.borderColor = '#c084fc';
+                            cardStyle.background = 'rgba(192, 132, 252, 0.05)';
+                          }
+                        }
+
+                        return (
+                          <div
+                            key={notif.id}
+                            className={`notification-item ${notif.read ? 'read' : 'unread'} type-${notif.type}`}
+                            style={cardStyle}
+                            onClick={() => handleNotificationClick(notif)}
+                          >
+                            <span style={{ fontSize: '16px' }}>{icon}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                              <span style={{
+                                fontWeight: notif.read ? '600' : '800',
+                                fontSize: '11px',
+                                color: 'var(--text-primary)',
+                                fontFamily: notif.type === 'ai' ? 'var(--font-heading)' : 'var(--font-body)'
+                              }}>
+                                {notif.title}
+                              </span>
+                              <span style={{
+                                fontSize: '10px',
+                                color: 'var(--text-secondary)',
+                                lineHeight: '1.3'
+                              }}>
+                                {notif.message}
+                              </span>
+                              <span style={{
+                                fontSize: '8px',
+                                color: 'var(--text-muted)',
+                                marginTop: '4px',
+                                fontFamily: 'var(--font-mono)'
+                              }}>
+                                {new Date(notif.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="topbar-user-badge">
+              {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
           </div>
         </header>
 

@@ -344,3 +344,40 @@ Today's Date: ${new Date().toISOString().split('T')[0]}`;
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. LIVE MARKET RATE SUGGESTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Generates an AI suggestion about the product's price relative to estimated B2B market rates.
+ * Returns: { title: string, message: string }
+ */
+export async function generateMarketRateSuggestion(product) {
+  const sys = `You are BulkBazar's B2B Market Pricing Broker.
+Analyze the product listing details and write a helpful, brief notification alerting the seller about the current market rate or pricing strategy they should implement next.
+Keep it extremely concise (title: max 45 chars, message: max 120 chars).
+Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
+{
+  "title": "Short title with emoji, e.g. 📊 FMCG Demand Spike",
+  "message": "Direct B2B suggestion/action, e.g. Maruti Fronx demand rose 12% this week. Lower price by 5% to match 3 active buyers."
+}`;
+
+  const userPrompt = `Generate a market rate suggestion for:
+Name: ${product.name}
+Category: ${product.category}
+Price: ₹${product.price}
+MRP: ₹${product.mrp || 'Not provided'}
+Condition: ${product.condition}
+Quantity: ${product.quantity} ${product.unit}`;
+
+  try {
+    return await callGemini(sys, userPrompt, true);
+  } catch (e) {
+    console.error('generateMarketRateSuggestion error:', e.message);
+    return {
+      title: `💡 Optimize ${product.name}`,
+      message: `Consider reducing price of ${product.name} by 8% to match local MSME retail buyers in the ${product.category} sector.`
+    };
+  }
+}
+
+
