@@ -407,7 +407,7 @@ const Dashboard = () => {
       }
 
       // Calculate stats (only if user is a seller)
-      if (profile?.role !== 'buyer') {
+      if (profile?.role === 'seller') {
         const prods = data || [];
         setStats(prev => ({
           ...prev,
