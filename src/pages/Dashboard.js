@@ -657,24 +657,7 @@ const Dashboard = () => {
     }));
   };
 
-  const getRecentAIMatches = () => {
-    if (!aiMatches || aiMatches.length === 0) {
-      return [
-        { title: 'No active AI matches found yet.', pct: 0, color: 'var(--border)' }
-      ];
-    }
-    return aiMatches.slice(0, 3).map(m => {
-      const name = m.product?.name || 'Bulk Lot';
-      const category = m.category;
-      const matchCount = m.count;
-      const score = estimateMarketability(m.product, orders.filter(o => o.product_id === m.product.id)).score;
-      return {
-        title: `✨ ${category}: "${name}" ➔ ${matchCount} matching buyers`,
-        pct: score,
-        color: 'var(--accent)'
-      };
-    });
-  };
+
 
   useEffect(() => {
     fetchProducts();
@@ -1442,24 +1425,43 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    {/* Recent AI Matches progress table */}
+                     {/* Recent AI Matches progress table */}
                     <div className="recent-ai-matches-section">
                       <h4 className="intel-section-title">Recent AI Matches</h4>
                       <div className="ai-matches-progress-list">
-                        {getRecentAIMatches().map((m, idx) => (
-                          <div key={idx} className="ai-match-progress-row">
-                            <div className="ai-match-progress-info">
-                              <span className="ai-match-progress-title">{m.title}</span>
-                              <span className="ai-match-progress-pct">{m.pct}% score</span>
-                            </div>
-                            <div className="ai-match-progress-bar-outer">
+                        {aiMatches && aiMatches.length > 0 ? (
+                          aiMatches.slice(0, 3).map((match, idx) => {
+                            const name = match.product?.name || 'Bulk Lot';
+                            const productOrders = orders.filter(o => o.product_id === match.product?.id);
+                            const score = estimateMarketability(match.product, productOrders).score;
+                            return (
                               <div
-                                className="ai-match-progress-bar-inner"
-                                style={{ width: `${m.pct}%`, background: m.color }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                                key={match.id || idx}
+                                className="ai-match-progress-row"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => setShowMatchModal(match)}
+                                title="Click to view potential B2B buyers and pitch with AI"
+                              >
+                                <div className="ai-match-progress-info">
+                                  <span className="ai-match-progress-title">
+                                    ✨ {match.category}: "{name}" ➔ {match.count} matching buyers
+                                  </span>
+                                  <span className="ai-match-progress-pct">{score}% score</span>
+                                </div>
+                                <div className="ai-match-progress-bar-outer">
+                                  <div
+                                    className="ai-match-progress-bar-inner"
+                                    style={{ width: `${score}%`, background: 'var(--accent)' }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', padding: '10px 0' }}>
+                            No active sourcing matches found yet.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1470,7 +1472,7 @@ const Dashboard = () => {
                       (() => {
                         const firstMatch = aiMatches[0];
                         return (
-                          <div className="achievement-widget widget-orange" onClick={() => setActiveTab('ai-insights')}>
+                          <div className="achievement-widget widget-orange" onClick={() => setShowMatchModal(firstMatch)}>
                             <div className="widget-icon">💡</div>
                             <div className="widget-info">
                               <span className="widget-title">AI Match Found!</span>
@@ -1710,6 +1712,61 @@ const Dashboard = () => {
                     )}
                   </div>
                 </div>
+
+                {/* 3. AI Sourcing Matches Center */}
+                <div className="ai-insights-card" style={{ gridColumn: 'span 2' }}>
+                  <h3>🤖 Active B2B Sourcing Matches</h3>
+                  <div className="ai-matches-grid-dashboard" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                    {aiMatches.length === 0 ? (
+                      <p className="no-data-msg" style={{ gridColumn: 'span 2', padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No active sourcing matches found. Ensure sourcing categories are configured correctly.
+                      </p>
+                    ) : (
+                      aiMatches.map((match, idx) => {
+                        const productOrders = orders.filter(o => o.product_id === match.product?.id);
+                        const score = estimateMarketability(match.product, productOrders).score;
+                        return (
+                          <div 
+                            key={match.id || idx} 
+                            className="card ai-match-grid-item" 
+                            style={{ 
+                              padding: '15px', 
+                              border: '2px solid var(--border)', 
+                              boxShadow: '4px 4px 0px var(--border)',
+                              cursor: 'pointer',
+                              background: 'var(--bg-white)',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onClick={() => setShowMatchModal(match)}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                              <span className="category-badge" style={{ textTransform: 'uppercase', fontSize: '9px', fontWeight: 'bold' }}>{match.category}</span>
+                              <span className="match-confidence-lbl" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 'bold', color: 'var(--accent-dark)' }}>
+                                ✨ {score}% Score
+                              </span>
+                            </div>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '14px', fontFamily: 'var(--font-heading)' }}>{match.product?.name}</h4>
+                            <p style={{ margin: '0 0 15px 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {match.count} buyers looking for this stock
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                                Qty: {match.product?.quantity} {match.product?.unit}
+                              </span>
+                              <button 
+                                className="buyer-item-pitch-btn" 
+                                style={{ padding: '6px 12px', fontSize: '11px' }}
+                              >
+                                Connect with Buyers &rarr;
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

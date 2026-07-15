@@ -70,7 +70,7 @@ const rateLimiter = (req, res, next) => {
 // Gemini AI Proxy — POST /api/gemini
 // ─────────────────────────────────────────────────────────────────────────────
 const GEMINI_KEY = process.env.GEMINI_KEY;
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
 
 app.post('/api/gemini', rateLimiter, async (req, res) => {
