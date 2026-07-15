@@ -2716,6 +2716,50 @@
   opacity: 0.85;
 }
 
+/* Floating Neobrutalist Toast Styles */
+.neobrutalist-toast {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.neobrutalist-toast:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0px #121212 !important;
+}
+
+.neobrutalist-toast.type-warning {
+  border-color: #f87171 !important;
+}
+
+.neobrutalist-toast.type-ai {
+  border-color: #c084fc !important;
+  box-shadow: 6px 6px 0px #c084fc !important;
+}
+
+.neobrutalist-toast.type-ai:hover {
+  box-shadow: 8px 8px 0px #c084fc !important;
+}
+
+.neobrutalist-toast.type-success {
+  border-color: #4ade80 !important;
+  box-shadow: 6px 6px 0px #4ade80 !important;
+}
+
+.neobrutalist-toast.type-success:hover {
+  box-shadow: 8px 8px 0px #4ade80 !important;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+
 
 
 

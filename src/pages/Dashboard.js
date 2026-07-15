@@ -82,10 +82,14 @@ const Dashboard = () => {
   const [aiExpiryResult, setAiExpiryResult] = useState(null);
   const [aiExpiryLoading, setAiExpiryLoading] = useState(false);
 
-  // Notification states
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [activeToast, setActiveToast] = useState(null);
+
+  const triggerToast = useCallback((title, message, type = 'info') => {
+    setActiveToast({ title, message, type });
+  }, []);
 
   // Profile state
   const [profileForm, setProfileForm] = useState({
@@ -186,53 +190,134 @@ const Dashboard = () => {
   }, [user]);
 
   const syncNotifications = useCallback(async (currentProducts, existingNotifications) => {
-    if (!user || !currentProducts || currentProducts.length === 0) return;
+    if (!user || !profile) return;
     
     const newNotificationsToInsert = [];
     const notificationSet = new Set(
-      existingNotifications.map(n => `${n.product_id}_${n.type}`)
+      existingNotifications.map(n => `${n.product_id || 'no_prod'}_${n.type}`)
     );
 
-    for (const product of currentProducts) {
-      // 1. Expiry Check
-      if (product.expiry_date && (product.category === 'FMCG' || product.category === 'Pharma')) {
-        const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
+    if (profile.role === 'seller') {
+      // ================= SELLER NOTIFICATIONS =================
+      if (currentProducts && currentProducts.length > 0) {
+        for (const product of currentProducts) {
+          // 1. Expiry Check
+          if (product.expiry_date && (product.category === 'FMCG' || product.category === 'Pharma')) {
+            const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
+            
+            if (daysToExpiry <= 45) {
+              const key = `${product.id}_warning`;
+              if (!notificationSet.has(key)) {
+                const isExpired = daysToExpiry <= 0;
+                newNotificationsToInsert.push({
+                  user_id: user.id,
+                  product_id: product.id,
+                  title: isExpired ? `🚨 Expired: ${product.name}` : `⏰ Expiring Soon: ${product.name}`,
+                  message: isExpired
+                    ? `This lot has expired (${Math.abs(daysToExpiry)} days ago). Click here to apply AI salvage clearance pricing.`
+                    : `This lot expires in ${daysToExpiry} days (${new Date(product.expiry_date).toLocaleDateString('en-IN')}). Click to see AI Expiry Alarm.`,
+                  type: 'warning',
+                  read: false
+                });
+                notificationSet.add(key);
+              }
+            }
+          }
+
+          // 2. AI Market Advice Check
+          const keyAi = `${product.id}_ai`;
+          if (!notificationSet.has(keyAi)) {
+            try {
+              const suggestion = await generateMarketRateSuggestion(product);
+              newNotificationsToInsert.push({
+                user_id: user.id,
+                product_id: product.id,
+                title: suggestion.title || `💡 AI Pricing Strategy`,
+                message: suggestion.message || `Optimize pricing for ${product.name} to attract active buyers.`,
+                type: 'ai',
+                read: false
+              });
+              notificationSet.add(keyAi);
+            } catch (err) {
+              console.error('Failed to generate market rate suggestion:', err);
+            }
+          }
+        }
+      }
+    } else {
+      // ================= BUYER NOTIFICATIONS =================
+      // 1. Category Matching Bargains and New Listings
+      if (profile.sourcing_categories) {
+        const sourcingCats = profile.sourcing_categories.split(',').map(c => c.trim().toLowerCase());
         
-        if (daysToExpiry <= 45) {
-          const key = `${product.id}_warning`;
-          if (!notificationSet.has(key)) {
-            const isExpired = daysToExpiry <= 0;
+        const { data: catProducts, error: prodErr } = await supabase
+          .from('products')
+          .select('*')
+          .eq('status', 'active');
+        
+        if (!prodErr && catProducts) {
+          const matchingProds = catProducts.filter(p => sourcingCats.includes(p.category.toLowerCase()) && p.user_id !== user.id);
+          
+          for (const product of matchingProds) {
+            // A. Expiry Bargain (if expiring soon, it is a great cheap bargain for buyers!)
+            if (product.expiry_date) {
+              const daysToExpiry = Math.ceil((new Date(product.expiry_date).getTime() - Date.now()) / 86400000);
+              if (daysToExpiry <= 45 && daysToExpiry > 0) {
+                const key = `${product.id}_ai`;
+                if (!notificationSet.has(key)) {
+                  newNotificationsToInsert.push({
+                    user_id: user.id,
+                    product_id: product.id,
+                    title: `🔥 Expiry Bargain: ${product.name}`,
+                    message: `FMCG/Pharma item near expiry (${daysToExpiry} days left) in your sourcing category ${product.category}. Clearance price is ₹${product.price}!`,
+                    type: 'ai',
+                    read: false
+                  });
+                  notificationSet.add(key);
+                }
+              }
+            }
+            
+            // B. New Listing Alert
+            const daysSinceListed = Math.floor((Date.now() - new Date(product.created_at).getTime()) / 86400000);
+            if (daysSinceListed <= 3) {
+              const key = `${product.id}_info`;
+              if (!notificationSet.has(key)) {
+                newNotificationsToInsert.push({
+                  user_id: user.id,
+                  product_id: product.id,
+                  title: `✨ New Arrival: ${product.name}`,
+                  message: `A new bulk lot in your sourcing category "${product.category}" has just been listed. Click to bargain!`,
+                  type: 'info',
+                  read: false
+                });
+                notificationSet.add(key);
+              }
+            }
+          }
+        }
+      }
+      
+      // 2. Order Status Update Notifications
+      const { data: buyerOrders, error: orderErr } = await supabase
+        .from('orders')
+        .select('*, products(name)')
+        .eq('buyer_id', user.id);
+      
+      if (!orderErr && buyerOrders) {
+        for (const order of buyerOrders) {
+          const key = `${order.product_id || 'no_prod'}_success_${order.status}`;
+          if (order.status !== 'pending' && !notificationSet.has(key)) {
             newNotificationsToInsert.push({
               user_id: user.id,
-              product_id: product.id,
-              title: isExpired ? `🚨 Expired: ${product.name}` : `⏰ Expiring Soon: ${product.name}`,
-              message: isExpired
-                ? `This lot has expired (${Math.abs(daysToExpiry)} days ago). Click here to apply AI salvage clearance pricing.`
-                : `This lot expires in ${daysToExpiry} days (${new Date(product.expiry_date).toLocaleDateString('en-IN')}). Click to see AI Expiry Alarm.`,
-              type: 'warning',
+              product_id: order.product_id,
+              title: `📦 Order ${order.status.toUpperCase()}`,
+              message: `Your order for "${order.products?.name || 'Item'}" has been marked as ${order.status} by the seller.`,
+              type: 'success',
               read: false
             });
             notificationSet.add(key);
           }
-        }
-      }
-
-      // 2. AI Market Advice Check
-      const keyAi = `${product.id}_ai`;
-      if (!notificationSet.has(keyAi)) {
-        try {
-          const suggestion = await generateMarketRateSuggestion(product);
-          newNotificationsToInsert.push({
-            user_id: user.id,
-            product_id: product.id,
-            title: suggestion.title || `💡 AI Pricing Strategy`,
-            message: suggestion.message || `Optimize pricing for ${product.name} to attract active buyers.`,
-            type: 'ai',
-            read: false
-          });
-          notificationSet.add(keyAi);
-        } catch (err) {
-          console.error('Failed to generate market rate suggestion:', err);
         }
       }
     }
@@ -243,11 +328,14 @@ const Dashboard = () => {
           .from('notifications')
           .insert(newNotificationsToInsert);
         if (error) throw error;
+        
+        // Trigger Toast for the first new notification
+        setActiveToast(newNotificationsToInsert[0]);
       } catch (err) {
         console.error('Error inserting synced notifications:', err);
       }
     }
-  }, [user]);
+  }, [user, profile]);
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
@@ -369,13 +457,13 @@ const Dashboard = () => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .delete()
         .eq('user_id', user.id);
       if (error) throw error;
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications([]);
       setUnreadCount(0);
     } catch (err) {
-      console.error('Error marking all notifications as read:', err);
+      console.error('Error clearing notifications:', err);
     }
   };
 
@@ -436,7 +524,7 @@ const Dashboard = () => {
       await fetchOrders();
       await fetchProducts(); // Refresh products as well since quantity changed
     } catch (err) {
-      alert('Failed to update order: ' + err.message);
+      triggerToast('Error', 'Failed to update order: ' + err.message, 'warning');
     }
   };
 
@@ -480,7 +568,7 @@ const Dashboard = () => {
         setActiveChatOrder(data);
       }, 500);
     } catch (err) {
-      alert('Failed to pitch stock: ' + err.message);
+      triggerToast('Error', 'Failed to pitch stock: ' + err.message, 'warning');
     } finally {
       setAiPitchLoading(false);
     }
@@ -528,6 +616,16 @@ const Dashboard = () => {
     fetchOrders();
     fetchNotifications();
   }, [fetchProducts, fetchOrders, fetchNotifications, profile]);
+
+  // Auto-hide Toast after 5 seconds
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
 
   // Realtime unread messages count listener
   useEffect(() => {
@@ -635,7 +733,7 @@ const Dashboard = () => {
       setSelectedDiagnosisProduct(null);
       await fetchProducts();
     } catch (err) {
-      alert('Failed to apply recommended price: ' + err.message);
+      triggerToast('Error', 'Failed to apply recommended price: ' + err.message, 'warning');
     }
   };
 
@@ -846,7 +944,7 @@ const Dashboard = () => {
       await fetchProducts();
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Failed to delete product: ' + err.message);
+      triggerToast('Error', 'Failed to delete product: ' + err.message, 'warning');
     }
   };
 
@@ -864,7 +962,7 @@ const Dashboard = () => {
       setProfileSuccess(true);
       setTimeout(() => setProfileSuccess(false), 3000);
     } catch (err) {
-      alert('Failed to update profile: ' + err.message);
+      triggerToast('Error', 'Failed to update profile: ' + err.message, 'warning');
     } finally {
       setProfileLoading(false);
     }
@@ -2236,9 +2334,9 @@ const Dashboard = () => {
                                       setShowDiagnosisModal(false);
                                       setSelectedDiagnosisProduct(null);
                                       await fetchProducts();
-                                      alert(`Applied ${stage.stageName} price of ${formatCurrency(stage.suggestedPrice)} successfully!`);
+                                      triggerToast('Success', `Applied ${stage.stageName} price of ${formatCurrency(stage.suggestedPrice)} successfully!`, 'success');
                                     } catch (err) {
-                                      alert('Failed to update price: ' + err.message);
+                                      triggerToast('Error', 'Failed to update price: ' + err.message, 'warning');
                                     }
                                   }}
                                 >
@@ -2272,7 +2370,7 @@ const Dashboard = () => {
                         style={{ width: '100%', padding: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                         onClick={() => {
                           navigator.clipboard.writeText(aiExpiryResult.clearancePitch);
-                          alert("Pitch copied to clipboard!");
+                          triggerToast('Copied', 'Clearance pitch copied to clipboard!', 'success');
                         }}
                       >
                         📋 Copy Clearance Pitch
@@ -2500,6 +2598,55 @@ const Dashboard = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Floating Neobrutalist Toast Notification */}
+      {activeToast && (
+        <div 
+          className={`neobrutalist-toast type-${activeToast.type}`} 
+          onClick={() => {
+            if (activeToast.product_id) {
+              handleNotificationClick(activeToast);
+            } else {
+              setActiveToast(null);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            top: '24px',
+            right: '24px',
+            width: '320px',
+            background: 'var(--bg-white)',
+            border: '3px solid var(--border)',
+            boxShadow: '6px 6px 0px var(--border)',
+            borderRadius: '4px',
+            padding: '16px',
+            zIndex: 1100,
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'start',
+            cursor: 'pointer',
+            animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
+          <div style={{ fontSize: '20px' }}>
+            {activeToast.type === 'warning' ? '🚨' : activeToast.type === 'ai' ? '✨' : activeToast.type === 'success' ? '✅' : '🔔'}
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+            <h4 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase' }}>
+              {activeToast.title}
+            </h4>
+            <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+              {activeToast.message}
+            </p>
+          </div>
+          <button 
+            type="button" 
+            onClick={(e) => { e.stopPropagation(); setActiveToast(null); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--text-muted)', padding: '0 4px', outline: 'none' }}
+          >
+            ×
+          </button>
         </div>
       )}
     </div>
