@@ -1987,8 +1987,8 @@ const Dashboard = () => {
                       <tr>
                         <th>{profile?.role === 'buyer' ? 'Seller' : 'Buyer'}</th>
                         <th>Product</th>
-                        <th>Qty</th>
-                        <th>Total</th>
+                        <th>{ordersSubTab === 'pitches' ? 'Unit Price' : 'Qty'}</th>
+                        <th>{ordersSubTab === 'pitches' ? 'Available Stock' : 'Total'}</th>
                         <th>Date</th>
                         <th>Status</th>
                         <th>Chat & Actions</th>
@@ -2020,8 +2020,16 @@ const Dashboard = () => {
                                 <span className="product-desc">{order.products?.category || ''}</span>
                               </div>
                             </td>
-                            <td className="price-cell">{order.quantity} {order.products?.unit || ''}</td>
-                            <td className="price-cell">{formatCurrency(order.total_price)}</td>
+                            <td className="price-cell">
+                              {ordersSubTab === 'pitches' 
+                                ? `${formatCurrency(order.products?.price || 0)} / ${(order.products?.unit || 'unit')}`
+                                : `${order.quantity} ${(order.products?.unit || '')}`}
+                            </td>
+                            <td className="price-cell">
+                              {ordersSubTab === 'pitches' 
+                                ? `${order.products?.quantity || 0} ${(order.products?.unit || '')}`
+                                : formatCurrency(order.total_price)}
+                            </td>
                             <td style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                               {new Date(order.created_at).toLocaleDateString('en-IN')}
                             </td>
